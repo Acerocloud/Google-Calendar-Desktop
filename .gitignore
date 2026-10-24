@@ -1,0 +1,10 @@
+/source/oauth-client.json
+*.bin
+*.log
+*.pdb
+/DeskCalendar.exe
+/DeskCalendar.exe.config
+/dist/
+/work/
+*.zip
+*.exe
