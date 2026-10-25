@@ -1,4 +1,4 @@
-﻿#define AppVersion "1.0.9"
+#define AppVersion "1.0.23"
 #ifndef PayloadDir
   #define PayloadDir "..\dist\app"
 #endif
@@ -71,4 +71,13 @@ var Release: Cardinal;
 begin
   Result := RegQueryDWordValue(HKLM64, 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full', 'Release', Release) and (Release >= 528040);
   if not Result then MsgBox('需要 Microsoft .NET Framework 4.8 或更高版本。请安装后重试。', mbError, MB_OK);
+end;
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var StartupCommand: String;
+begin
+  if CurUninstallStep = usUninstall then
+    if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'DeskCalendar', StartupCommand) then
+      if (CompareText(StartupCommand, '"' + ExpandConstant('{app}\DeskCalendar.exe') + '"') = 0) or
+         (CompareText(StartupCommand, ExpandConstant('{app}\DeskCalendar.exe')) = 0) then
+        RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'DeskCalendar');
 end;

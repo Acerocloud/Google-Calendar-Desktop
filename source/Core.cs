@@ -17,16 +17,23 @@ public class Preferences {
  public List<string> Selected=new List<string>();
  public bool SelectionSaved=false;
 }
-public class CalendarInfo { public string Id, Name, Color; public bool Primary; }
+public class CalendarInfo { public string Id, Name, Color, AccessRole; public bool Primary; public bool Writable {get{return AccessRole=="owner"||AccessRole=="writer";}} }
 public class CalendarEvent {
- public string Id, CalendarId, CalendarName, Color, Title, Location, Description, Link;
+ public string Etag,RecurringId; public string Id, CalendarId, CalendarName, Color, Title, Location, Description, Link;
  public string Start, End;
  public bool AllDay;
- public DateTime StartLocal { get { return AllDay ? DateTime.ParseExact(Start,"yyyy-MM-dd",CultureInfo.InvariantCulture) : DateTimeOffset.Parse(Start,CultureInfo.InvariantCulture).LocalDateTime; } }
- public DateTime EndLocal { get { return AllDay ? DateTime.ParseExact(End,"yyyy-MM-dd",CultureInfo.InvariantCulture) : DateTimeOffset.Parse(End,CultureInfo.InvariantCulture).LocalDateTime; } }
- public bool IsPoint {get{return !AllDay&&DateTimeOffset.Parse(End,CultureInfo.InvariantCulture)==DateTimeOffset.Parse(Start,CultureInfo.InvariantCulture);}}
- public bool ValidDuration {get{return AllDay?EndLocal>StartLocal:DateTimeOffset.Parse(End,CultureInfo.InvariantCulture)>=DateTimeOffset.Parse(Start,CultureInfo.InvariantCulture);}}
- public double DurationMinutes {get{return AllDay?(EndLocal-StartLocal).TotalMinutes:(DateTimeOffset.Parse(End,CultureInfo.InvariantCulture)-DateTimeOffset.Parse(Start,CultureInfo.InvariantCulture)).TotalMinutes;}}
+ string parsedStart,parsedEnd;bool parsedAllDay,datesReady;TimeZoneInfo parsedZone;DateTime startLocal,endLocal;DateTimeOffset startOffset,endOffset;
+ void EnsureDates(){
+  var zone=TimeZoneInfo.Local;if(datesReady&&parsedStart==Start&&parsedEnd==End&&parsedAllDay==AllDay&&ReferenceEquals(parsedZone,zone))return;
+  if(AllDay){startLocal=DateTime.ParseExact(Start,"yyyy-MM-dd",CultureInfo.InvariantCulture);endLocal=DateTime.ParseExact(End,"yyyy-MM-dd",CultureInfo.InvariantCulture);}
+  else{startOffset=DateTimeOffset.Parse(Start,CultureInfo.InvariantCulture);endOffset=DateTimeOffset.Parse(End,CultureInfo.InvariantCulture);startLocal=startOffset.LocalDateTime;endLocal=endOffset.LocalDateTime;}
+  parsedStart=Start;parsedEnd=End;parsedAllDay=AllDay;parsedZone=zone;datesReady=true;
+ }
+ public DateTime StartLocal {get{EnsureDates();return startLocal;}}
+ public DateTime EndLocal {get{EnsureDates();return endLocal;}}
+ public bool IsPoint {get{EnsureDates();return !AllDay&&endOffset==startOffset;}}
+ public bool ValidDuration {get{EnsureDates();return AllDay?endLocal>startLocal:endOffset>=startOffset;}}
+ public double DurationMinutes {get{EnsureDates();return AllDay?(endLocal-startLocal).TotalMinutes:(endOffset-startOffset).TotalMinutes;}}
  public bool InRange(DateTime start,DateTime end) {return IsPoint?StartLocal>=start&&StartLocal<end:StartLocal<end&&EndLocal>start;}
  public bool OnDay(DateTime day) { return InRange(day.Date,day.Date.AddDays(1)); }
  public bool Ongoing(DateTime now) { return !AllDay && StartLocal<=now && EndLocal>now; }
@@ -38,7 +45,7 @@ public class CacheData {
  public string RangeStart, RangeEnd;
 }
 public class Credentials { public string ClientId, ClientSecret; }
-public class TokenData { public string Access, Refresh; public long Expiry; }
+public class TokenData { public string Access, Refresh, Scope; public long Expiry; }
 
 public class Store {
  public readonly string DirectoryPath;

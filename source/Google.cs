@@ -15,8 +15,8 @@ using System.Threading.Tasks;
 namespace DeskCalendar {
 public class LoginRequiredException:Exception { public LoginRequiredException():base("登录已过期，请重新登录。"){} }
 public class RetryException:Exception { public TimeSpan Delay;public RetryException(TimeSpan d):base("Google 暂时限制了请求，请稍后重试。") {Delay=d;} }
-public class GoogleService:IDisposable {
- const string Scopes="https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/calendar.calendarlist.readonly";
+public partial class GoogleService:IDisposable {
+ internal const string Scopes="https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly";
  readonly Store store;
  readonly HttpClient http;
  TokenData token;
@@ -78,7 +78,7 @@ public class GoogleService:IDisposable {
      var data=new Dictionary<string,string>{{"client_id",client.ClientId},{"code",code},{"code_verifier",verifier},{"redirect_uri",callback},{"grant_type","authorization_code"}};
      if(!string.IsNullOrEmpty(client.ClientSecret))data["client_secret"]=client.ClientSecret;
      var result=await TokenRequest(data,timeout.Token);if(session!=accountSession)throw new OperationCanceledException();
-     string granted=Store.Text(result,"scope");if(!granted.Contains("calendar.events.readonly")||!granted.Contains("calendar.calendarlist.readonly"))throw new Exception("未授予所需的日历读取权限，请重新登录并勾选两项权限。 ");
+     string granted=Store.Text(result,"scope");if(!granted.Split(' ').Contains("https://www.googleapis.com/auth/calendar.events")||!granted.Split(' ').Contains("https://www.googleapis.com/auth/calendar.calendarlist.readonly"))throw new Exception("未授予日程读写或日历列表权限，请重新登录并勾选两项权限。原有登录已保留。");
      token=new TokenData();responses.Clear();ApplyToken(result);store.Write("tokens.bin",token,true);
     }catch(ObjectDisposedException){throw new OperationCanceledException("登录已取消或超时。");}
      catch(SocketException){if(timeout.IsCancellationRequested)throw new OperationCanceledException("登录已取消或超时。");throw;}
@@ -93,7 +93,7 @@ public class GoogleService:IDisposable {
    return Store.Object(text);
   }
  }
- void ApplyToken(Dictionary<string,object> data){token.Access=Store.Text(data,"access_token");string refresh=Store.Text(data,"refresh_token");if(refresh!="")token.Refresh=refresh;int seconds;if(!int.TryParse(Store.Text(data,"expires_in"),out seconds))seconds=3600;token.Expiry=DateTime.UtcNow.AddSeconds(seconds-60).Ticks;}
+ void ApplyToken(Dictionary<string,object> data){string scope=Store.Text(data,"scope");if(scope!="")token.Scope=scope;token.Access=Store.Text(data,"access_token");string refresh=Store.Text(data,"refresh_token");if(refresh!="")token.Refresh=refresh;int seconds;if(!int.TryParse(Store.Text(data,"expires_in"),out seconds))seconds=3600;token.Expiry=DateTime.UtcNow.AddSeconds(seconds-60).Ticks;}
  async Task<string> Access(CancellationToken ct){
   if(!string.IsNullOrEmpty(token.Access)&&token.Expiry>DateTime.UtcNow.Ticks)return token.Access;
   if(string.IsNullOrEmpty(token.Refresh))throw new LoginRequiredException();
@@ -126,19 +126,19 @@ public class GoogleService:IDisposable {
  public async Task<List<CalendarInfo>> CalendarsAsync(CancellationToken ct){
   var list=new List<CalendarInfo>();string page="";
   do {var d=await Get("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=250"+(page==""?"":"&pageToken="+Uri.EscapeDataString(page)),ct);
-   foreach(var x in Store.Items(d))list.Add(new CalendarInfo{Id=Store.Text(x,"id"),Name=Store.Text(x,"summary"),Color=Store.Text(x,"backgroundColor"),Primary=Store.Text(x,"primary").ToLowerInvariant()=="true"});page=Store.Text(d,"nextPageToken");
+   foreach(var x in Store.Items(d))list.Add(new CalendarInfo{Id=Store.Text(x,"id"),Name=Store.Text(x,"summary"),Color=Store.Text(x,"backgroundColor"),AccessRole=Store.Text(x,"accessRole"),Primary=Store.Text(x,"primary").ToLowerInvariant()=="true"});page=Store.Text(d,"nextPageToken");
   }while(page!="");
   return list;
  }
  public async Task ColorsAsync(CancellationToken ct){var d=await Get("https://www.googleapis.com/calendar/v3/colors",ct);var map=Store.Map(d,"event");if(map==null)return;var result=new Dictionary<string,string>();foreach(var item in map){var v=item.Value as Dictionary<string,object>;if(v!=null)result[item.Key]=Store.Text(v,"background");}eventColors=result;}
  public async Task<List<CalendarEvent>> EventsAsync(CalendarInfo cal,DateTime start,DateTime end,CancellationToken ct){
   var result=new List<CalendarEvent>();string page="";
-  string url="https://www.googleapis.com/calendar/v3/calendars/"+Uri.EscapeDataString(cal.Id)+"/events?singleEvents=true&orderBy=startTime&maxResults=2500&timeMin="+Uri.EscapeDataString(new DateTimeOffset(start).ToString("o"))+"&timeMax="+Uri.EscapeDataString(new DateTimeOffset(end).ToString("o"))+"&fields="+Uri.EscapeDataString("items(id,status,summary,location,description,htmlLink,colorId,start,end),nextPageToken");
+  string url="https://www.googleapis.com/calendar/v3/calendars/"+Uri.EscapeDataString(cal.Id)+"/events?singleEvents=true&orderBy=startTime&maxResults=2500&timeMin="+Uri.EscapeDataString(new DateTimeOffset(start).ToString("o"))+"&timeMax="+Uri.EscapeDataString(new DateTimeOffset(end).ToString("o"))+"&fields="+Uri.EscapeDataString("items(id,etag,recurringEventId,status,summary,location,description,htmlLink,colorId,start,end),nextPageToken");
   do {var data=await Get(url+(page==""?"":"&pageToken="+Uri.EscapeDataString(page)),ct);
    foreach(var x in Store.Items(data)){
     if(Store.Text(x,"status")=="cancelled")continue;var a=Store.Map(x,"start");var b=Store.Map(x,"end");if(a==null||b==null)continue;
     bool all=Store.Text(a,"date")!="";string color; if(!eventColors.TryGetValue(Store.Text(x,"colorId"),out color))color=cal.Color;
-    var e=new CalendarEvent{Id=Store.Text(x,"id"),CalendarId=cal.Id,CalendarName=cal.Name,Color=color,Title=Store.Text(x,"summary"),Location=Store.Text(x,"location"),Description=Store.Text(x,"description"),Link=Store.Text(x,"htmlLink"),AllDay=all,Start=Store.Text(a,all?"date":"dateTime"),End=Store.Text(b,all?"date":"dateTime")};
+    var e=new CalendarEvent{Id=Store.Text(x,"id"),Etag=Store.Text(x,"etag"),RecurringId=Store.Text(x,"recurringEventId"),CalendarId=cal.Id,CalendarName=cal.Name,Color=color,Title=Store.Text(x,"summary"),Location=Store.Text(x,"location"),Description=Store.Text(x,"description"),Link=Store.Text(x,"htmlLink"),AllDay=all,Start=Store.Text(a,all?"date":"dateTime"),End=Store.Text(b,all?"date":"dateTime")};
     if(e.Title=="")e.Title="忙碌";
     if(e.ValidDuration)result.Add(e);
    }

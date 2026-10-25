@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,6 +13,7 @@ using System.Windows.Threading;
 namespace DeskCalendar {
 public static class Program {
  [STAThread] public static int Main(string[] args){
+  if(args.Length>0&&args[0]=="--apply-update")return UpdateService.ApplyUpdate(args);
   bool demo=args.Contains("--demo"),test=args.Contains("--self-test"),visual=args.Contains("--visual-qa");string output=Argument(args,"--render"),data=Argument(args,"--data"),benchmark=Argument(args,"--benchmark");
   if(Path.GetFileNameWithoutExtension(System.Reflection.Assembly.GetExecutingAssembly().Location).EndsWith(".VisualQA",StringComparison.Ordinal)){demo=true;visual=true;data=Path.Combine(Path.GetTempPath(),"DeskCalendar-VisualQA-v107");}
 #if VISUAL_QA
@@ -38,7 +39,7 @@ public static class Program {
     if(output!=null||benchmark!=null||visual)window.Show();else{window.StartInTray();if(demo)window.ShowCalendar();}app.Run();return 0;
    }
   }catch(Exception ex){
-   string error="启动失败："+ex.Message;if(test||output!=null){Directory.CreateDirectory(data);File.WriteAllText(Path.Combine(data,"error.txt"),error);return 1;}MessageBox.Show(error,"日历");return 1;
+   string error="启动失败："+ex.Message;if(test||output!=null){Directory.CreateDirectory(data);File.WriteAllText(Path.Combine(data,"error.txt"),test?ex.ToString():error);return 1;}MessageBox.Show(error,"日历");return 1;
   }
  }
  static string Argument(string[] args,string name){int i=Array.IndexOf(args,name);return i>=0&&i+1<args.Length?Path.GetFullPath(args[i+1]):null;}
@@ -50,7 +51,7 @@ public static class Program {
  }
 }
 
-public static class SelfTests {
+public static partial class SelfTests {
  static int count;static void Check(bool ok,string description){if(!ok)throw new Exception("测试失败："+description);count++;}
  public static void Run(string directory){
   if(File.Exists(Path.Combine(directory,"tokens.bin"))||File.Exists(Path.Combine(directory,"client.bin")))throw new Exception("测试目录中包含登录信息，请指定新的空目录。 ");
@@ -111,6 +112,8 @@ public static class SelfTests {
    Check(canceled&&!google.Connected&&!File.Exists(Path.Combine(directory,"tokens.bin")),"断开后迟到的刷新响应不能恢复登录");
    google.RevokeAsync(refresh).GetAwaiter().GetResult();Check(delayed.Revoked&&!google.Connected,"撤销授权仅调用撤销接口并保持断开状态");
   }
+  UpdateTests.Run(Check,Path.Combine(directory,"updates"));
+  CreateChecks(Path.Combine(directory,"create"));
   WidgetChecks(Path.Combine(directory,"widget"));
   File.WriteAllText(Path.Combine(directory,"self-test.txt"),count+" checks passed\r\n"+DateTimeOffset.Now.ToString("o"));
  }
@@ -128,7 +131,7 @@ public static class SelfTests {
   var flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
   try{
    window.StartInTray();Check(!window.IsVisible,"启动后仅驻留托盘，不显示日历");
-   window.ShowCalendar();Check(window.IsVisible,"点击托盘展开日历");
+   window.ShowCalendar();Check(window.IsVisible,"点击托盘展开日历");CreateWidgetChecks(window);
    Check(!window.Topmost&&!((Preferences)typeof(CalendarWindow).GetField("prefs",flags).GetValue(window)).Pinned,"升级时清除旧置顶设置");
    window.TogglePopup();Check(!window.IsVisible,"再次点击托盘收起日历");window.TogglePopup();Check(window.IsVisible&&!window.Topmost,"收起后可重新展开，仍不置顶");
    Check(!Descendants(window).OfType<System.Windows.Controls.Button>().Any(b=>Convert.ToString(b.ToolTip).Contains("置顶")),"主界面不再提供置顶入口");
@@ -144,14 +147,31 @@ public static class SelfTests {
    IntPtr hwnd=new System.Windows.Interop.WindowInteropHelper(window).Handle;
    bool glass=(bool)typeof(CalendarWindow).GetMethod("GlassEnabled",flags).Invoke(window,null);
    Check(Native.BackdropType(hwnd)==(glass?3:1),"DWM 实际应用预期 Acrylic 或实色回退");
-   var surface=(System.Windows.Controls.Border)typeof(CalendarWindow).GetField("surface",flags).GetValue(window);var before=((System.Windows.Media.SolidColorBrush)surface.Background).Color;
+   var surface=(System.Windows.Controls.Border)typeof(CalendarWindow).GetField("surface",flags).GetValue(window);var before=((System.Windows.Media.SolidColorBrush)surface.Background).Color;CheckWindowCorners(window,surface,"主页");
    typeof(Window).GetMethod("OnDeactivated",flags).Invoke(window,new object[]{EventArgs.Empty});var after=((System.Windows.Media.SolidColorBrush)surface.Background).Color;
    Check(before==after,"失去焦点不改变背景透明度和颜色");
+   Check(Native.SuppressBorder(hwnd),"系统接受主窗口额外边框禁用设置");
+   int materialUpdates=window.MaterialUpdates;
+   for(int focus=0;focus<12;focus++){typeof(Window).GetMethod("OnActivated",flags).Invoke(window,new object[]{EventArgs.Empty});typeof(Window).GetMethod("OnDeactivated",flags).Invoke(window,new object[]{EventArgs.Empty});}
+   Check(window.MaterialUpdates==materialUpdates,"反复激活失焦不重新设置原生背景材质");
+   typeof(CalendarWindow).GetMethod("ApplyMaterial",flags).Invoke(window,null);
+   Check(window.MaterialUpdates==materialUpdates,"材质状态未变时不触发 DWM 重配置");
+   int nativeStyle=Native.GetWindowLong(hwnd,-16),backdrop=Native.BackdropType(hwnd);window.SetLocked(true);Pump(window);
+   Check(window.ResizeMode==ResizeMode.CanResize&&Native.GetWindowLong(hwnd,-16)==nativeStyle,"锁定不改变原生窗口样式");
+   Check(Native.BackdropType(hwnd)==backdrop,"锁定后毛玻璃保持原状态");
+   Check(System.Windows.Shell.WindowChrome.GetWindowChrome(window).ResizeBorderThickness==new Thickness(0),"锁定禁用边缘缩放");
+   var lockIcon=Descendants(window).OfType<System.Windows.Controls.Button>().Single(b=>b.Name=="LockShortcut");
+   Check(Convert.ToString(lockIcon.Content)=="\uE72E"&&System.Windows.Automation.AutomationProperties.GetItemStatus(lockIcon)=="已锁定","锁定快捷图标显示已锁定状态");
+   Check(store.Read<Preferences>("settings.json",false).Locked,"锁定偏好已保存");
+   window.SetLocked(false);Pump(window);Check(System.Windows.Shell.WindowChrome.GetWindowChrome(window).ResizeBorderThickness==new Thickness(5)&&Native.BackdropType(hwnd)==backdrop,"解锁恢复缩放且保持毛玻璃");
    Window detail=null;
    try{
     typeof(CalendarWindow).GetMethod("OpenEvent",flags).Invoke(window,new object[]{CalendarMath.Demo().Events.First()});
     detail=window.OwnedWindows.Cast<Window>().Single(w=>w.Title=="日程详情");
     var detailFrame=(System.Windows.Controls.Border)detail.Tag;
+    CheckWindowCorners(detail,detailFrame,"小窗");
+    Check(Native.SuppressBorder(new System.Windows.Interop.WindowInteropHelper(detail).Handle),"详情窗口禁用系统额外边框");
+    object initialDetailContent=detail.Content;Pump(window);Check(ReferenceEquals(initialDetailContent,detail.Content),"详情首次显示后不清空或替换外框");
     Check(((System.Windows.Media.SolidColorBrush)detailFrame.Background).Color==((System.Windows.Media.SolidColorBrush)surface.Background).Color,"事件详情与主窗口使用相同背景颜色和透明度");
     Check(detail.WindowStyle==WindowStyle.None&&detail.Background==System.Windows.Media.Brushes.Transparent,"事件详情移除系统浅色标题栏和实色底板");
     Check(Native.BackdropType(new System.Windows.Interop.WindowInteropHelper(detail).Handle)==Native.BackdropType(hwnd),"主窗口与事件详情的 DWM 材质一致");
@@ -196,12 +216,32 @@ public static class SelfTests {
    var dates=mini.Children.OfType<System.Windows.Controls.Primitives.UniformGrid>().Last();
    Check(dates.Children.Cast<System.Windows.Controls.Border>().Take(3).All(b=>b.Child==null&&!b.IsHitTestVisible),"季度上月补位格保留为空且不可点击");
    Check(window.Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)] is Style,"毛玻璃界面统一应用自定义滚动条样式");
-   var verticalBar=VisualNodes(timeline).OfType<System.Windows.Controls.Primitives.ScrollBar>().First(b=>b.Orientation==System.Windows.Controls.Orientation.Vertical);Check(verticalBar.ActualWidth==10&&((System.Windows.Media.SolidColorBrush)verticalBar.Background).Color.A==0&&verticalBar.Template.FindName("PART_Track",verticalBar) is System.Windows.Controls.Primitives.Track,"实际时间轴滚动条为透明轨道和细滑块 width="+verticalBar.ActualWidth+" background="+verticalBar.Background+" track="+verticalBar.Template.FindName("PART_Track",verticalBar));
+   var verticalBar=VisualNodes(timeline).OfType<System.Windows.Controls.Primitives.ScrollBar>().First(b=>b.Orientation==System.Windows.Controls.Orientation.Vertical);Check(Math.Abs(verticalBar.ActualWidth-10)<=1.0/System.Windows.Media.VisualTreeHelper.GetDpi(verticalBar).DpiScaleX&&((System.Windows.Media.SolidColorBrush)verticalBar.Background).Color.A==0&&verticalBar.Template.FindName("PART_Track",verticalBar) is System.Windows.Controls.Primitives.Track,"实际时间轴滚动条为透明轨道和细滑块 width="+verticalBar.ActualWidth+" background="+verticalBar.Background+" track="+verticalBar.Template.FindName("PART_Track",verticalBar));
+   var updateFixture=UpdateService.ParseRelease("{\"tag_name\":\"v99.0.0\",\"assets\":[{\"name\":\"DeskCalendar-Setup-99.0.0-x64.exe\",\"size\":4,\"digest\":\"sha256:"+new string('a',64)+"\",\"browser_download_url\":\"https://github.com/Acerocloud/Google-Calendar-Desktop/releases/download/v99.0.0/DeskCalendar-Setup-99.0.0-x64.exe\"}]}",UpdateService.Current);
+   typeof(CalendarWindow).GetMethod("ShowUpdatePrompt",flags).Invoke(window,new object[]{updateFixture});Pump(window);
+   var updateWindow=(Window)typeof(CalendarWindow).GetField("updatePrompt",flags).GetValue(window);
+   Check(updateWindow!=null&&Descendants(updateWindow).OfType<System.Windows.Controls.Button>().Any(b=>b.Name=="InstallUpdate"),"发现新版本时应用内提供一键更新弹窗");
+   Descendants(updateWindow).OfType<System.Windows.Controls.Button>().Single(b=>Convert.ToString(b.Content)=="稍后").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+   Check(typeof(CalendarWindow).GetField("updatePrompt",flags).GetValue(window)==null,"稍后关闭更新弹窗，不自动安装");
    Exception error=null;
    window.Dispatcher.BeginInvoke(new Action(()=>{
     Window settings=null;
     try{
      settings=window.OwnedWindows.Cast<Window>().Single(w=>w.Title=="设置");
+     Check(Descendants(settings).OfType<System.Windows.Controls.Button>().Any(b=>b.Name=="CheckForUpdates"),"设置中提供检查更新按钮");
+     var settingsLogin=Descendants(settings).OfType<System.Windows.Controls.Button>().Single(b=>b.Name=="SettingsGoogleLogin");
+     Check(settingsLogin.Visibility==Visibility.Collapsed&&!Descendants(settings).OfType<System.Windows.Controls.Button>().Any(b=>Convert.ToString(b.Content)=="重新登录 Google"),"登录成功后不显示登录或重新登录按钮");
+     var checks=Descendants(settings).OfType<System.Windows.Controls.CheckBox>().ToList();
+     Check(checks.All(cb=>VisualNodes(cb).OfType<System.Windows.Controls.Border>().Any(b=>b.CornerRadius.TopLeft==4)),"设置勾选框使用统一圆角模板");
+     var lockCheck=checks.Single(cb=>Convert.ToString(cb.Content)=="锁定位置与尺寸");lockCheck.IsChecked=true;Pump(window);
+     Check(Convert.ToString(lockIcon.Content)=="\uE72E"&&Native.BackdropType(hwnd)==backdrop,"设置锁定开关同步快捷图标且不影响毛玻璃");lockCheck.IsChecked=false;Pump(window);
+     var combo=Descendants(settings).OfType<System.Windows.Controls.ComboBox>().Single();combo.IsDropDownOpen=true;Pump(window);
+     var popup=(System.Windows.Controls.Primitives.Popup)combo.Template.FindName("PART_Popup",combo);
+     Check(popup.IsOpen&&((System.Windows.Controls.Border)popup.Child).CornerRadius.TopLeft==6&&((System.Windows.Media.SolidColorBrush)((System.Windows.Controls.Border)popup.Child).Background).Color!=System.Windows.Media.Colors.White,"下拉菜单为统一深色圆角面板");combo.IsDropDownOpen=false;
+     var slider=Descendants(settings).OfType<System.Windows.Controls.Slider>().Single();
+     Check(VisualNodes(slider).OfType<System.Windows.Shapes.Ellipse>().Any(),"设置滑块使用圆形滑块和细轨道");
+     Check(Descendants(settings).OfType<System.Windows.Controls.Button>().Where(b=>Convert.ToString(b.Content)=="完成"||Convert.ToString(b.Content)=="断开账号").All(b=>b.BorderThickness==new Thickness(1)&&((System.Windows.Media.SolidColorBrush)b.BorderBrush).Color.A>0),"完成与断开账号按钮具有可见细线边框");
+     Check(Native.SuppressBorder(new System.Windows.Interop.WindowInteropHelper(settings).Handle),"设置窗口禁用系统额外边框");
      Check(((System.Windows.Media.SolidColorBrush)((System.Windows.Controls.Border)settings.Tag).Background).Color==((System.Windows.Media.SolidColorBrush)surface.Background).Color,"设置与主窗口保持一致背景");
      Check(!Descendants(settings).OfType<System.Windows.Controls.CheckBox>().Any(b=>Convert.ToString(b.Content).Contains("置顶")),"设置不再提供置顶开关");
      var logout=Descendants(settings).OfType<System.Windows.Controls.Button>().Single(b=>Convert.ToString(b.Content)=="断开账号");
@@ -214,10 +254,13 @@ public static class SelfTests {
      var loginButton=Descendants(window).OfType<System.Windows.Controls.Button>().Single(b=>b.Name=="GoogleLoginButton");
      Check(((System.Windows.Media.SolidColorBrush)loginButton.Background).Color==System.Windows.Media.Colors.White&&loginButton.Width==204&&loginButton.Height==40,"Google 登录按钮使用白底固定尺寸");
      Check(Descendants(loginButton).OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text=="Google 登录")&&Descendants(loginButton).OfType<System.Windows.Controls.Image>().Any(i=>i.Source!=null),"Google 登录按钮包含正确文案和嵌入图标");
-     Check(Descendants(settings).OfType<System.Windows.Controls.Button>().Any(b=>Convert.ToString(b.Content)=="登录 Google"&&b.IsEnabled),"断开后仅提供手动重新登录入口");
+     Check(Descendants(settings).OfType<System.Windows.Controls.Button>().Any(b=>b.Name=="SettingsGoogleLogin"&&b.IsEnabled&&b.Visibility==Visibility.Visible),"断开后仅提供手动重新登录入口");
+     Check(Descendants(settingsLogin).OfType<System.Windows.Controls.Image>().Any(i=>i.Source!=null)&&Descendants(settingsLogin).OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text=="Google 登录"),"设置未登录按钮包含 Google 官方图标与文案");
     }catch(Exception ex){error=ex;}finally{if(settings!=null)settings.Close();}
    }),DispatcherPriority.ApplicationIdle);
    typeof(CalendarWindow).GetMethod("OpenSettings",flags).Invoke(window,null);if(error!=null)throw error;
+   Check(ReferenceEquals(window.Content,surface),"关闭设置不重建主页外框");
+   typeof(CalendarWindow).GetMethod("Build",flags).Invoke(window,null);typeof(CalendarWindow).GetMethod("Render",flags,null,Type.EmptyTypes,null).Invoke(window,null);Pump(window);CheckWindowCorners(window,(System.Windows.Controls.Border)window.Content,"主页重建后");Check(Native.BackdropType(hwnd)==backdrop,"主页重建后仍保持原有毛玻璃材质");MotionChecks(window);PreparedViewChecks(window);
   }finally{typeof(CalendarWindow).GetField("exiting",flags).SetValue(window,true);window.Close();}
  }
 }
