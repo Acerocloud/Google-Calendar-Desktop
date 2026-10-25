@@ -2,7 +2,7 @@
 
 本项目是独立维护的桌面应用，不是 Google 官方产品。
 
-授权和同步由应用直接向 Google 官方端点发起。初次登录一次申请 calendar.events 日程读写和 calendar.calendarlist.readonly 日历列表读取权限；仅在用户点击保存后创建日程，点击确认删除后删除对应日程（重复日程仅删除当前实例），不通过本项目维护者的服务器转发或保存日历。应用不读取 Google 密码，不收集遥测，不向维护者发送日程。
+授权和同步由应用直接向 Google 官方端点发起。初次登录一次申请 calendar.events 日程读写和 calendar.calendarlist.readonly 日历列表读取权限；仅在用户点击保存后创建或编辑日程，点击确认删除后删除对应日程（重复日程仅删除当前实例），不通过本项目维护者的服务器转发或保存日历。应用不读取 Google 密码，不收集遥测，不向维护者发送日程。
 
 访问令牌、刷新令牌和日程缓存通过 Windows DPAPI CurrentUser 加密，保存在用户本机 `%LOCALAPPDATA%\DeskCalendar`。窗口偏好和已选日历标识也保存在本机，部分设置未加密。发行安装包不包含维护者的账号令牌或缓存。
 

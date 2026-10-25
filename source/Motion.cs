@@ -11,7 +11,7 @@ public static class MotionPolicy {
  public const int RiseMilliseconds=170,SlideMilliseconds=200,PageMilliseconds=200;
  public static bool Enabled(bool systemAnimations,bool batterySaver,bool remote){return systemAnimations&&!batterySaver&&!remote;}
  public static double Ease(double progress){double t=Math.Max(0,Math.Min(1,progress));return 1-Math.Pow(1-t,3);}
- public static int Direction(string from,string to){return Math.Sign(Array.IndexOf(new[]{"week","month","quarter"},to)-Array.IndexOf(new[]{"week","month","quarter"},from));}
+ public static int Direction(string from,string to){return Math.Sign(Array.IndexOf(new[]{"week","month","quarter","year"},to)-Array.IndexOf(new[]{"week","month","quarter","year"},from));}
 }
 // The native window moves as a whole, retaining DWM acrylic, corner clipping and shadow.
 // The rendering subscription exists only during the short opening motion.

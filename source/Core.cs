@@ -87,7 +87,8 @@ public static class CalendarMath {
   return start+"–"+end;
  }
  public static double PollMinutes(bool visible,bool battery,int failures){return Math.Min(60,Math.Max(visible?(battery?15:5):30, failures==0?0:Math.Pow(2,Math.Min(6,failures))));}
- public static DateTime Navigation(DateTime d,string view,int delta){return view=="week"?d.AddDays(7*delta):view=="quarter"?d.AddMonths(3*delta):d.AddMonths(delta);}
+ public static string PeriodTitle(DateTime d,string view){return view=="week"?Monday(d).ToString("M 月 d 日")+" - "+Monday(d).AddDays(6).ToString("M 月 d 日"):view=="quarter"?d.Year+" Q"+(((d.Month-1)/3)+1):view=="year"?d.Year+" 年":d.ToString("yyyy 年 M 月");}
+ public static DateTime Navigation(DateTime d,string view,int delta){return view=="week"?d.AddDays(7*delta):view=="quarter"?d.AddMonths(3*delta):view=="year"?d.AddYears(delta):d.AddMonths(delta);}
  public static CacheData Demo(){
   CacheData c=new CacheData();var cal=new CalendarInfo{Id="demo",Name="示例",Color="#82A8CD",Primary=true};c.Calendars.Add(cal);
   DateTime today=DateTime.Today;

@@ -113,7 +113,7 @@ public static partial class SelfTests {
    google.RevokeAsync(refresh).GetAwaiter().GetResult();Check(delayed.Revoked&&!google.Connected,"撤销授权仅调用撤销接口并保持断开状态");
   }
   UpdateTests.Run(Check,Path.Combine(directory,"updates"));
-  CreateChecks(Path.Combine(directory,"create"));
+  CreateChecks(Path.Combine(directory,"create"));EditChecks(Path.Combine(directory,"edit"));
   WidgetChecks(Path.Combine(directory,"widget"));
   File.WriteAllText(Path.Combine(directory,"self-test.txt"),count+" checks passed\r\n"+DateTimeOffset.Now.ToString("o"));
  }
@@ -260,7 +260,7 @@ public static partial class SelfTests {
    }),DispatcherPriority.ApplicationIdle);
    typeof(CalendarWindow).GetMethod("OpenSettings",flags).Invoke(window,null);if(error!=null)throw error;
    Check(ReferenceEquals(window.Content,surface),"关闭设置不重建主页外框");
-   typeof(CalendarWindow).GetMethod("Build",flags).Invoke(window,null);typeof(CalendarWindow).GetMethod("Render",flags,null,Type.EmptyTypes,null).Invoke(window,null);Pump(window);CheckWindowCorners(window,(System.Windows.Controls.Border)window.Content,"主页重建后");Check(Native.BackdropType(hwnd)==backdrop,"主页重建后仍保持原有毛玻璃材质");MotionChecks(window);PreparedViewChecks(window);
+   typeof(CalendarWindow).GetMethod("Build",flags).Invoke(window,null);typeof(CalendarWindow).GetMethod("Render",flags,null,Type.EmptyTypes,null).Invoke(window,null);Pump(window);CheckWindowCorners(window,(System.Windows.Controls.Border)window.Content,"主页重建后");Check(Native.BackdropType(hwnd)==backdrop,"主页重建后仍保持原有毛玻璃材质");MotionChecks(window);PreparedViewChecks(window);YearChecks(window);FocusFeedbackChecks(window);
   }finally{typeof(CalendarWindow).GetField("exiting",flags).SetValue(window,true);window.Close();}
  }
 }

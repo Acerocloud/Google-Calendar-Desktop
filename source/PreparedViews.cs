@@ -13,10 +13,11 @@ namespace DeskCalendar {
 public partial class CalendarWindow {
  sealed class PreparedView {public UIElement Root;public Canvas Canvas;public Line Now;public ScrollViewer Timeline;public double Width;public DateTime Week;}
  readonly Dictionary<string,PreparedView> preparedViews=new Dictionary<string,PreparedView>();DispatcherOperation prepareOperation;int prepareGeneration;bool navigationRendering;
- string ViewKey(string view,DateTime date){DateTime first=view=="week"?CalendarMath.Monday(date):view=="quarter"?CalendarMath.Quarter(date):CalendarMath.Month(date);return view+first.ToString("yyyyMMdd")+":"+ActualWidth.ToString(CultureInfo.InvariantCulture)+":"+ActualHeight.ToString(CultureInfo.InvariantCulture)+":"+prefs.TimelineZoom.ToString(CultureInfo.InvariantCulture);}
+ string ViewKey(string view,DateTime date){DateTime first=view=="week"?CalendarMath.Monday(date):view=="quarter"?CalendarMath.Quarter(date):view=="year"?new DateTime(date.Year,1,1):CalendarMath.Month(date);return view+first.ToString("yyyyMMdd")+":"+ActualWidth.ToString(CultureInfo.InvariantCulture)+":"+ActualHeight.ToString(CultureInfo.InvariantCulture)+":"+prefs.TimelineZoom.ToString(CultureInfo.InvariantCulture);}
  void ClearPreparedViews(){prepareGeneration++;if(prepareOperation!=null&&prepareOperation.Status==DispatcherOperationStatus.Pending)prepareOperation.Abort();prepareOperation=null;preparedViews.Clear();}
  bool UsePreparedView(){PreparedView view;string key=ViewKey(prefs.View,anchor);if(!preparedViews.TryGetValue(key,out view))return false;preparedViews.Remove(key);weekCanvas=view.Canvas;nowLine=view.Now;timelineViewer=view.Timeline;weekWidth=view.Width;weekStart=view.Week;content.Content=view.Root;if(view.Now!=null)UpdateNow();return true;}
  void QueuePreparedViews(){
+  if(prefs.View=="year"){ClearPreparedViews();return;}
   if(popupRise.Running||!IsVisible||exiting||suspended||sessionLocked||pageSliding||content==null||content.ActualWidth<=0||Battery()||BatterySaving()||!MotionPolicy.Enabled(SystemParameters.ClientAreaAnimation,false,false))return;
   if(prepareOperation!=null&&prepareOperation.Status==DispatcherOperationStatus.Pending)return;
   var targets=new List<Tuple<string,DateTime>>();foreach(string view in new[]{"week","month","quarter"})if(view!=prefs.View)targets.Add(Tuple.Create(view,anchor));targets.Add(Tuple.Create(prefs.View,CalendarMath.Navigation(anchor,prefs.View,1)));targets.Add(Tuple.Create(prefs.View,CalendarMath.Navigation(anchor,prefs.View,-1)));

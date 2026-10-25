@@ -4,9 +4,9 @@ using System.Windows.Controls;
 
 namespace DeskCalendar {
 public partial class CalendarWindow {
- void BindEventDuration(StackPanel form,CheckBox allDay,EventDatePicker startDate,EventDatePicker endDate,EventTimePicker startTime,EventTimePicker endTime){
-  var duration=new ComboBox{Name="EventDuration",MinHeight=36};foreach(int minutes in new[]{15,30,45,60,90,120,180,240,480,1440})duration.Items.Add(new ComboBoxItem{Content=DurationLabel(minutes),Tag=(double)minutes});duration.SelectedIndex=1;EventField(form,"持续时间",duration);
-  double currentMinutes=30;bool updating=false;
+ void BindEventDuration(StackPanel form,CheckBox allDay,EventDatePicker startDate,EventDatePicker endDate,EventTimePicker startTime,EventTimePicker endTime,double initialMinutes=30){
+  var duration=new ComboBox{Name="EventDuration",MinHeight=36};foreach(int minutes in new[]{15,30,45,60,90,120,180,240,480,1440})duration.Items.Add(new ComboBoxItem{Content=DurationLabel(minutes),Tag=(double)minutes});var initial=duration.Items.OfType<ComboBoxItem>().FirstOrDefault(i=>(double)i.Tag==initialMinutes);if(initial==null){initial=new ComboBoxItem{Content=DurationLabel(initialMinutes),Tag=initialMinutes};duration.Items.Add(initial);}duration.SelectedItem=initial;duration.IsEnabled=allDay.IsChecked!=true;EventField(form,"持续时间",duration);
+  double currentMinutes=Math.Max(0,initialMinutes);bool updating=false;
   Action updateDuration=()=>{
    if(updating||allDay.IsChecked==true)return;updating=true;
    try{double minutes=((endDate.SelectedDate+endTime.SelectedTime)-(startDate.SelectedDate+startTime.SelectedTime)).TotalMinutes;

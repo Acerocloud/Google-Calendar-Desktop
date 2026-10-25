@@ -11,10 +11,10 @@ using System.Threading.Tasks;
 namespace DeskCalendar {
 public class EventDraft {
  public string Id=Guid.NewGuid().ToString("N"),Title,Location,Description;
- public DateTime Start,End; public bool AllDay; public int Reminder=-1;
+ public DateTime Start,End; public bool AllDay,AllowPoint; public int Reminder=-1;
  public Dictionary<string,object> Payload(){
   if(string.IsNullOrWhiteSpace(Title))throw new Exception("请填写日程标题。");
-  if(AllDay?End.Date<Start.Date:End<=Start)throw new Exception("结束时间须晚于开始时间。");
+  if(AllDay?End.Date<Start.Date:AllowPoint?End<Start:End<=Start)throw new Exception("结束时间须晚于开始时间。");
   if(!AllDay&&(TimeZoneInfo.Local.IsInvalidTime(Start)||TimeZoneInfo.Local.IsInvalidTime(End)))throw new Exception("所选时间处于夏令时跳转区间，请换一个时间。");
   if(!AllDay&&(TimeZoneInfo.Local.IsAmbiguousTime(Start)||TimeZoneInfo.Local.IsAmbiguousTime(End)))throw new Exception("所选时间在夏令时切换时出现两次，请在 Google 日历中创建。");
   if(Reminder < -2 || Reminder>40320)throw new Exception("提醒时间无效。");
