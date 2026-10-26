@@ -16,7 +16,7 @@ namespace DeskCalendar {
 public class LoginRequiredException:Exception { public LoginRequiredException():base("登录已过期，请重新登录。"){} }
 public class RetryException:Exception { public TimeSpan Delay;public RetryException(TimeSpan d):base("Google 暂时限制了请求，请稍后重试。") {Delay=d;} }
 public partial class GoogleService:IDisposable {
- internal const string Scopes="https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly";
+ internal const string Scopes="https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/tasks";
  readonly Store store;
  readonly HttpClient http;
  TokenData token;

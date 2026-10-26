@@ -16,10 +16,11 @@ public static class MotionPolicy {
 // The native window moves as a whole, retaining DWM acrylic, corner clipping and shadow.
 // The rendering subscription exists only during the short opening motion.
 public sealed class PopupRise {
+ public int DurationMilliseconds=MotionPolicy.RiseMilliseconds;public int WarmupFrames;
  readonly Stopwatch watch=new Stopwatch();Action<System.Drawing.Rectangle> place;System.Drawing.Rectangle target;int distance,lastOffset;EventHandler frame;
  public event EventHandler Completed;public bool Running {get{return frame!=null;}}
  public void Start(System.Drawing.Rectangle bounds,int pixels,Action<System.Drawing.Rectangle> position){
-  Stop(false);target=bounds;distance=pixels;place=position;watch.Restart();lastOffset=pixels;frame=delegate{int offset=(int)Math.Round(distance*(1-MotionPolicy.Ease(watch.Elapsed.TotalMilliseconds/MotionPolicy.RiseMilliseconds)));if(watch.ElapsedMilliseconds>=MotionPolicy.RiseMilliseconds){Stop(true);return;}if(offset!=lastOffset){lastOffset=offset;var current=target;current.Y+=offset;place(current);}};CompositionTarget.Rendering+=frame;var start=target;start.Y+=distance;place(start);
+  Stop(false);target=bounds;distance=pixels;place=position;watch.Reset();lastOffset=pixels;int settling=WarmupFrames;frame=delegate{if(settling>0){settling--;return;}if(!watch.IsRunning)watch.Start();int offset=(int)Math.Round(distance*(1-MotionPolicy.Ease(watch.Elapsed.TotalMilliseconds/DurationMilliseconds)));if(watch.ElapsedMilliseconds>=DurationMilliseconds){Stop(true);return;}if(offset!=lastOffset){lastOffset=offset;var current=target;current.Y+=offset;place(current);}};CompositionTarget.Rendering+=frame;var start=target;start.Y+=distance;place(start);
  }
  public void Stop(bool finish){if(frame==null)return;CompositionTarget.Rendering-=frame;frame=null;watch.Stop();var action=place;place=null;if(finish&&action!=null)action(target);if(finish&&Completed!=null)Completed(this,EventArgs.Empty);}
 }

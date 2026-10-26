@@ -24,7 +24,7 @@ public partial class CalendarWindow {
   var wanted=new HashSet<string>(targets.Select(t=>ViewKey(t.Item1,t.Item2)));foreach(string key in preparedViews.Keys.Where(k=>!wanted.Contains(k)).ToArray())preparedViews.Remove(key);
   var target=targets.FirstOrDefault(t=>!preparedViews.ContainsKey(ViewKey(t.Item1,t.Item2)));if(target==null)return;int generation=prepareGeneration;
   prepareOperation=Dispatcher.BeginInvoke(new Action(()=>{
-   prepareOperation=null;if(generation!=prepareGeneration||!IsVisible||pageSliding||exiting||suspended||sessionLocked)return;
+   prepareOperation=null;if(generation!=prepareGeneration||popupRise.Running||!IsVisible||pageSliding||exiting||suspended||sessionLocked)return;
    string oldView=prefs.View;DateTime oldAnchor=anchor,oldWeek=weekStart;Canvas oldCanvas=weekCanvas;Line oldNow=nowLine;ScrollViewer oldTimeline=timelineViewer;double oldWidth=weekWidth,oldMinute=timelineMinute;
    try{prefs.View=target.Item1;anchor=target.Item2;timelineMinute=540;weekCanvas=null;nowLine=null;timelineViewer=null;var root=(FrameworkElement)(prefs.View=="week"?WeekView():prefs.View=="quarter"?QuarterView():MonthView(anchor,false));root.Resources=Resources;root.UseLayoutRounding=true;root.SnapsToDevicePixels=true;root.SetValue(TextElement.FontFamilyProperty,FontFamily);root.SetValue(TextElement.FontSizeProperty,FontSize);var size=new Size(content.ActualWidth,content.ActualHeight);root.Measure(size);root.Arrange(new Rect(size));preparedViews[ViewKey(prefs.View,anchor)]=new PreparedView{Root=root,Canvas=weekCanvas,Now=nowLine,Timeline=timelineViewer,Width=weekWidth,Week=weekStart};}
    catch{preparedViews.Clear();return;}

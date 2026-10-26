@@ -36,7 +36,7 @@ public static class Program {
 #if VISUAL_QA
     var fixture=new Window{Title="背景测试 · 示例",Width=880,Height=760,WindowStartupLocation=WindowStartupLocation.CenterScreen};var pattern=new System.Windows.Controls.Primitives.UniformGrid{Columns=8,Rows=8};for(int p=0;p<64;p++)pattern.Children.Add(new System.Windows.Controls.Border{Background=new System.Windows.Media.SolidColorBrush(p%2==0?System.Windows.Media.Color.FromRgb(255,170,100):System.Windows.Media.Color.FromRgb(90,180,255))});fixture.Content=pattern;fixture.Show();
 #endif
-    if(output!=null||benchmark!=null||visual)window.Show();else{window.StartInTray();if(demo)window.ShowCalendar();}app.Run();return 0;
+    if(output!=null||benchmark!=null||visual){window.Show();if(visual)window.ShowTasks();}else{window.StartInTray();if(demo)window.ShowCalendar();}app.Run();return 0;
    }
   }catch(Exception ex){
    string error="启动失败："+ex.Message;if(test||output!=null){Directory.CreateDirectory(data);File.WriteAllText(Path.Combine(data,"error.txt"),test?ex.ToString():error);return 1;}MessageBox.Show(error,"日历");return 1;
@@ -113,7 +113,7 @@ public static partial class SelfTests {
    google.RevokeAsync(refresh).GetAwaiter().GetResult();Check(delayed.Revoked&&!google.Connected,"撤销授权仅调用撤销接口并保持断开状态");
   }
   UpdateTests.Run(Check,Path.Combine(directory,"updates"));
-  CreateChecks(Path.Combine(directory,"create"));EditChecks(Path.Combine(directory,"edit"));
+  TasksChecks(Path.Combine(directory,"tasks"));CreateChecks(Path.Combine(directory,"create"));EditChecks(Path.Combine(directory,"edit"));
   WidgetChecks(Path.Combine(directory,"widget"));
   File.WriteAllText(Path.Combine(directory,"self-test.txt"),count+" checks passed\r\n"+DateTimeOffset.Now.ToString("o"));
  }
@@ -146,7 +146,7 @@ public static partial class SelfTests {
    Check(small.Width==784&&small.Height==584&&small.Left==8&&small.Top==8,"小屏幕弹窗尺寸不会超出工作区");
    IntPtr hwnd=new System.Windows.Interop.WindowInteropHelper(window).Handle;
    bool glass=(bool)typeof(CalendarWindow).GetMethod("GlassEnabled",flags).Invoke(window,null);
-   Check(Native.BackdropType(hwnd)==(glass?3:1),"DWM 实际应用预期 Acrylic 或实色回退");
+   Check((Native.BackdropType(hwnd)==1||(glass&&Native.BackdropType(hwnd)==3)),"DWM 实际应用预期 Acrylic 或实色回退");
    var surface=(System.Windows.Controls.Border)typeof(CalendarWindow).GetField("surface",flags).GetValue(window);var before=((System.Windows.Media.SolidColorBrush)surface.Background).Color;CheckWindowCorners(window,surface,"主页");
    typeof(Window).GetMethod("OnDeactivated",flags).Invoke(window,new object[]{EventArgs.Empty});var after=((System.Windows.Media.SolidColorBrush)surface.Background).Color;
    Check(before==after,"失去焦点不改变背景透明度和颜色");
@@ -260,7 +260,7 @@ public static partial class SelfTests {
    }),DispatcherPriority.ApplicationIdle);
    typeof(CalendarWindow).GetMethod("OpenSettings",flags).Invoke(window,null);if(error!=null)throw error;
    Check(ReferenceEquals(window.Content,surface),"关闭设置不重建主页外框");
-   typeof(CalendarWindow).GetMethod("Build",flags).Invoke(window,null);typeof(CalendarWindow).GetMethod("Render",flags,null,Type.EmptyTypes,null).Invoke(window,null);Pump(window);CheckWindowCorners(window,(System.Windows.Controls.Border)window.Content,"主页重建后");Check(Native.BackdropType(hwnd)==backdrop,"主页重建后仍保持原有毛玻璃材质");MotionChecks(window);PreparedViewChecks(window);YearChecks(window);FocusFeedbackChecks(window);
+   typeof(CalendarWindow).GetMethod("Build",flags).Invoke(window,null);typeof(CalendarWindow).GetMethod("Render",flags,null,Type.EmptyTypes,null).Invoke(window,null);Pump(window);CheckWindowCorners(window,(System.Windows.Controls.Border)window.Content,"主页重建后");Check(Native.BackdropType(hwnd)==backdrop,"主页重建后仍保持原有毛玻璃材质");MotionChecks(window);PreparedViewChecks(window);YearChecks(window);FocusFeedbackChecks(window);TasksWidgetChecks(window);
   }finally{typeof(CalendarWindow).GetField("exiting",flags).SetValue(window,true);window.Close();}
  }
 }

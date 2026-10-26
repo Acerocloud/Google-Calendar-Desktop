@@ -9,6 +9,8 @@ using System.Windows.Media;
 
 namespace DeskCalendar {
 public partial class CalendarWindow {
+ bool eventEditorOpen;Button addEventShortcut,browserShortcut,settingsShortcut;
+ void UpdateCalendarActions(){foreach(var button in new[]{addEventShortcut,browserShortcut,settingsShortcut})if(button!=null)button.IsEnabled=!eventEditorOpen;}
  TextBox EventInput(string name,string value,bool multiline=false){
   var box=new TextBox{Name=name,Text=value,Foreground=foreground,Background=Brushes.Transparent,BorderThickness=new Thickness(0),Padding=new Thickness(10,8,10,8),MinHeight=36,VerticalContentAlignment=VerticalAlignment.Center,AcceptsReturn=multiline,TextWrapping=multiline?TextWrapping.Wrap:TextWrapping.NoWrap};
   box.CaretBrush=foreground;box.SelectionBrush=hover;if(multiline){box.Height=76;box.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;}
@@ -21,7 +23,7 @@ public partial class CalendarWindow {
  void OpenCreateEvent(DateTime day){OpenEventEditor(day,null);}
  void OpenEditEvent(CalendarEvent original){OpenEventEditor(original.StartLocal.Date,original);}
  void OpenEventEditor(DateTime day,CalendarEvent original){
-  bool editing=original!=null;Window detailOwner=editing?eventDetail:null;CalendarEvent savedEvent=null;
+  if(eventEditorOpen)return;bool editing=original!=null;Window detailOwner=editing?eventDetail:null;CalendarEvent savedEvent=null;
   if(!editing){if(eventDetail!=null)eventDetail.Close();if(dayDetail!=null)dayDetail.Close();}
   var w=Dialog(editing?"编辑日程":"新增日程",440,720);if(detailOwner!=null)w.Owner=detailOwner;var panel=new StackPanel{Margin=new Thickness(22,0,22,18)};var form=new StackPanel();
   var message=Wrap("",12,muted);message.Margin=new Thickness(0,10,0,6);panel.Children.Add(message);
@@ -62,7 +64,7 @@ public partial class CalendarWindow {
     catch(Exception ex){confirmed=!editing;if(ex is LoginRequiredException){authExpired=true;ready=false;confirmed=false;}message.Text=Friendly(ex)+(editing?"":"\n再次保存会确认同一条日程；取消后请先检查 Google 日历。");}
     finally{working=false;busy=false;state();Render();Schedule();if(!w.IsVisible&&!rendering)QueueSync();}
    };
-   w.Closing+=delegate(object sender,System.ComponentModel.CancelEventArgs e){if(working)e.Cancel=true;};state();var layout=new DockPanel();DockPanel.SetDock(buttons,Dock.Bottom);layout.Children.Add(buttons);layout.Children.Add(new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});SetDialogContent(w,layout);w.ShowDialog();
+   w.Closing+=delegate(object sender,System.ComponentModel.CancelEventArgs e){if(working)e.Cancel=true;};state();var layout=new DockPanel();DockPanel.SetDock(buttons,Dock.Bottom);layout.Children.Add(buttons);layout.Children.Add(new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});SetDialogContent(w,layout);eventEditorOpen=true;UpdateCalendarActions();try{w.ShowDialog();}finally{eventEditorOpen=false;UpdateCalendarActions();}
   }
   if(editing&&savedEvent!=null){if(detailOwner!=null)detailOwner.Close();OpenEvent(savedEvent);}
  }

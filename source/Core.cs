@@ -9,6 +9,7 @@ using System.Web.Script.Serialization;
 
 namespace DeskCalendar {
 public class Preferences {
+ public double TasksWidth=300; public string TaskListId="";
  public double TimelineZoom=1;
  public double Left=double.NaN, Top=double.NaN, Width=760, Height=650;
  public string View="month", Theme="dark";

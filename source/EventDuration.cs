@@ -1,11 +1,15 @@
 using System;
 using System.Linq;
+using System.Windows;
+using System.Windows.Data;
 using System.Windows.Controls;
 
 namespace DeskCalendar {
 public partial class CalendarWindow {
  void BindEventDuration(StackPanel form,CheckBox allDay,EventDatePicker startDate,EventDatePicker endDate,EventTimePicker startTime,EventTimePicker endTime,double initialMinutes=30){
-  var duration=new ComboBox{Name="EventDuration",MinHeight=36};foreach(int minutes in new[]{15,30,45,60,90,120,180,240,480,1440})duration.Items.Add(new ComboBoxItem{Content=DurationLabel(minutes),Tag=(double)minutes});var initial=duration.Items.OfType<ComboBoxItem>().FirstOrDefault(i=>(double)i.Tag==initialMinutes);if(initial==null){initial=new ComboBoxItem{Content=DurationLabel(initialMinutes),Tag=initialMinutes};duration.Items.Add(initial);}duration.SelectedItem=initial;duration.IsEnabled=allDay.IsChecked!=true;EventField(form,"持续时间",duration);
+  var duration=new ComboBox{Name="EventDuration",MinHeight=36};foreach(int minutes in new[]{15,30,45,60,90,120,180,240,480,1440})duration.Items.Add(new ComboBoxItem{Content=DurationLabel(minutes),Tag=(double)minutes});var initial=duration.Items.OfType<ComboBoxItem>().FirstOrDefault(i=>(double)i.Tag==initialMinutes);if(initial==null){initial=new ComboBoxItem{Content=DurationLabel(initialMinutes),Tag=initialMinutes};duration.Items.Add(initial);}duration.SelectedItem=initial;duration.IsEnabled=allDay.IsChecked!=true;  var row=new Grid();row.ColumnDefinitions.Add(new ColumnDefinition());row.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(8)});row.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});row.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(8)});row.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});row.Children.Add(duration);
+  foreach(int value in new[]{30,60}){int minutes=value;var quick=SettingsButton(value==30?"30 分钟":"1 小时","快速设置持续时间",()=>{duration.SelectedItem=duration.Items.OfType<ComboBoxItem>().First(i=>(double)i.Tag==minutes);});quick.Name="QuickDuration"+value;quick.Margin=new Thickness(0);quick.MinWidth=72;quick.SetBinding(UIElement.IsEnabledProperty,new Binding("IsEnabled"){Source=duration});Grid.SetColumn(quick,value==30?2:4);row.Children.Add(quick);}
+  EventField(form,"持续时间",new ContentControl{Content=row,HorizontalContentAlignment=HorizontalAlignment.Stretch});
   double currentMinutes=Math.Max(0,initialMinutes);bool updating=false;
   Action updateDuration=()=>{
    if(updating||allDay.IsChecked==true)return;updating=true;

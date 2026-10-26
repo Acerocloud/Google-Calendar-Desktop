@@ -92,7 +92,7 @@ public partial class CalendarWindow:Window {
   saveTimer.Interval=TimeSpan.FromMilliseconds(700);saveTimer.Tick+=delegate{saveTimer.Stop();Save();};
   if(!renderMode){CreateTray();SystemEvents.PowerModeChanged+=OnPower;SystemEvents.SessionSwitch+=OnSession;SystemEvents.DisplaySettingsChanged+=OnDisplays;SystemEvents.UserPreferenceChanged+=OnPreferences;NetworkChange.NetworkAvailabilityChanged+=OnNetwork;}
   try{using(var icon=System.Drawing.Icon.ExtractAssociatedIcon(Assembly.GetExecutingAssembly().Location)){base.Icon=Imaging.CreateBitmapSourceFromHIcon(icon.Handle,Int32Rect.Empty,System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());}}catch{}
-  InputFeedback.Attach(this);Build();InitUpdates();popupRise.Completed+=delegate{QueuePreparedViews();};
+  InitTasks();InputFeedback.Attach(this);Build();InitUpdates();popupRise.Completed+=delegate{FinishCalendarRise();QueuePreparedViews();};
  }
  SolidColorBrush BrushColor(string color){try{return new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));}catch{return new SolidColorBrush(Color.FromRgb(132,165,190));}}
  Brush Alpha(byte alpha){return new SolidColorBrush(Color.FromArgb(alpha,255,255,255));}
@@ -108,11 +108,11 @@ public partial class CalendarWindow:Window {
  }
  new Button Icon(string glyph,string label,Action action){var b=Button(glyph,label,action);b.FontFamily=new FontFamily("Segoe MDL2 Assets");b.FontSize=14;b.Width=30;b.Padding=new Thickness(0);return b;}
  void Styles(){
-  const string x="<ResourceDictionary xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'><Style TargetType='Button'><Setter Property='Cursor' Value='Hand'/><Setter Property='HorizontalContentAlignment' Value='Center'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'><Border x:Name='bg' Background='{TemplateBinding Background}' BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}' CornerRadius='4' Padding='{TemplateBinding Padding}'><ContentPresenter HorizontalAlignment='{TemplateBinding HorizontalContentAlignment}' VerticalAlignment='Center' RecognizesAccessKey='True'/></Border><ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='bg' Property='Background' Value='#20A0A0A0'/></Trigger><Trigger Property='IsPressed' Value='True'><Setter TargetName='bg' Property='Background' Value='#35A0A0A0'/><Setter TargetName='bg' Property='BorderBrush' Value='#FFAAAAAA'/><Setter TargetName='bg' Property='BorderThickness' Value='1'/></Trigger><Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='bg' Property='BorderBrush' Value='#FFAAAAAA'/><Setter TargetName='bg' Property='BorderThickness' Value='1'/></Trigger><Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.4'/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style><Style TargetType='ToolTip'><Setter Property='Background' Value='#FF292A2B'/><Setter Property='Foreground' Value='#FFF0F0ED'/><Setter Property='BorderBrush' Value='#FF555555'/><Setter Property='Padding' Value='10'/><Setter Property='MaxWidth' Value='360'/></Style></ResourceDictionary>";
+  const string x="<ResourceDictionary xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'><Style TargetType='Button'><Setter Property='Cursor' Value='Hand'/><Setter Property='HorizontalContentAlignment' Value='Center'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'><Border x:Name='bg' Background='{TemplateBinding Background}' BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}' CornerRadius='4' Padding='{TemplateBinding Padding}'><ContentPresenter HorizontalAlignment='{TemplateBinding HorizontalContentAlignment}' VerticalAlignment='Center' RecognizesAccessKey='True'/></Border><ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='bg' Property='Background' Value='#20A0A0A0'/></Trigger><Trigger Property='IsPressed' Value='True'><Setter TargetName='bg' Property='Background' Value='#35A0A0A0'/></Trigger><Trigger Property='IsKeyboardFocused' Value='True'></Trigger><Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.4'/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style><Style TargetType='ToolTip'><Setter Property='Background' Value='#FF292A2B'/><Setter Property='Foreground' Value='#FFF0F0ED'/><Setter Property='BorderBrush' Value='#FF555555'/><Setter Property='Padding' Value='10'/><Setter Property='MaxWidth' Value='360'/></Style></ResourceDictionary>";
   Resources=(ResourceDictionary)XamlReader.Parse(x.Replace("</ResourceDictionary>",@"<Style TargetType='ScrollBar'><Setter Property='MinWidth' Value='0'/><Setter Property='MinHeight' Value='0'/><Setter Property='Width' Value='10'/><Setter Property='Background' Value='Transparent'/><Setter Property='Focusable' Value='False'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ScrollBar'><Grid Background='Transparent'><Track x:Name='PART_Track' Orientation='{TemplateBinding Orientation}' IsDirectionReversed='True' Minimum='{TemplateBinding Minimum}' Maximum='{TemplateBinding Maximum}' Value='{TemplateBinding Value}' ViewportSize='{TemplateBinding ViewportSize}'><Track.DecreaseRepeatButton><RepeatButton Command='{x:Static ScrollBar.PageUpCommand}' Opacity='0' Focusable='False'/></Track.DecreaseRepeatButton><Track.Thumb><Thumb MinHeight='28' Margin='2,0' Background='{DynamicResource GlassScrollThumb}'><Thumb.Template><ControlTemplate TargetType='Thumb'><Border x:Name='grip' Background='{TemplateBinding Background}' CornerRadius='3'/><ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='grip' Property='Background' Value='{DynamicResource GlassScrollHover}'/></Trigger><Trigger Property='IsDragging' Value='True'><Setter TargetName='grip' Property='Background' Value='{DynamicResource GlassScrollHover}'/></Trigger></ControlTemplate.Triggers></ControlTemplate></Thumb.Template></Thumb></Track.Thumb><Track.IncreaseRepeatButton><RepeatButton Command='{x:Static ScrollBar.PageDownCommand}' Opacity='0' Focusable='False'/></Track.IncreaseRepeatButton></Track></Grid></ControlTemplate></Setter.Value></Setter></Style><Style TargetType='ScrollViewer'><Setter Property='Background' Value='Transparent'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ScrollViewer'><Grid Background='{TemplateBinding Background}'><Grid.ColumnDefinitions><ColumnDefinition Width='*'/><ColumnDefinition Width='Auto'/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height='*'/><RowDefinition Height='Auto'/></Grid.RowDefinitions><ScrollContentPresenter x:Name='PART_ScrollContentPresenter' Content='{TemplateBinding Content}' ContentTemplate='{TemplateBinding ContentTemplate}' CanContentScroll='{TemplateBinding CanContentScroll}' Margin='{TemplateBinding Padding}'/><ScrollBar x:Name='PART_VerticalScrollBar' Grid.Column='1' Orientation='Vertical' Width='10' MinWidth='0' Background='Transparent' Visibility='{TemplateBinding ComputedVerticalScrollBarVisibility}' Maximum='{TemplateBinding ScrollableHeight}' ViewportSize='{TemplateBinding ViewportHeight}' Value='{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}'/><ScrollBar x:Name='PART_HorizontalScrollBar' Grid.Row='1' Orientation='Horizontal' Height='10' Width='Auto' Background='Transparent' Visibility='{TemplateBinding ComputedHorizontalScrollBarVisibility}' Maximum='{TemplateBinding ScrollableWidth}' ViewportSize='{TemplateBinding ViewportWidth}' Value='{Binding HorizontalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}'/></Grid></ControlTemplate></Setter.Value></Setter></Style></ResourceDictionary>"));Resources["GlassScrollThumb"]=SystemParameters.HighContrast?SystemColors.WindowTextBrush:BrushColor(prefs.Theme=="light"?"#66000000":"#66FFFFFF");Resources["GlassScrollHover"]=SystemParameters.HighContrast?SystemColors.HighlightBrush:BrushColor(prefs.Theme=="light"?"#99000000":"#AAFFFFFF");
  }
  void UpdateLockIcon(){if(lockButton==null)return;lockButton.Content=prefs.Locked?"\uE72E":"\uE785";lockButton.ToolTip=prefs.Locked?"解锁位置与尺寸":"锁定位置与尺寸";lockButton.Background=prefs.Locked?hover:Brushes.Transparent;AutomationProperties.SetName(lockButton,prefs.Locked?"解锁位置与尺寸":"锁定位置与尺寸");AutomationProperties.SetItemStatus(lockButton,prefs.Locked?"已锁定":"未锁定");}
- internal void SetLocked(bool value){prefs.Locked=value;var chrome=WindowChrome.GetWindowChrome(this);if(chrome!=null)chrome.ResizeBorderThickness=new Thickness(value?0:5);UpdateLockIcon();Save();}
+ internal void SetLocked(bool value){prefs.Locked=value;var chrome=WindowChrome.GetWindowChrome(this);if(chrome!=null)chrome.ResizeBorderThickness=new Thickness(value?0:5);UpdateLockIcon();AlignTasks();Save();}
  Button SettingsButton(string text,string label,Action action){var b=Button(text,label,action);b.BorderThickness=new Thickness(1);b.SetResourceReference(Control.BorderBrushProperty,"ControlBorder");b.SetResourceReference(Control.ForegroundProperty,"ControlText");b.Padding=new Thickness(12,8,12,8);b.MinHeight=36;b.Margin=new Thickness(0,4,0,4);return b;}
  Button SettingsGoogleLoginButton(Action action){
   var button=SettingsButton("","Google 登录",action);var row=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
@@ -131,8 +131,8 @@ public partial class CalendarWindow:Window {
   var drag=Text("日历",12,muted);drag.HorizontalAlignment=HorizontalAlignment.Stretch;drag.Background=Brushes.Transparent;drag.MouseLeftButtonDown+=delegate{if(!prefs.Locked)try{DragMove();}catch(InvalidOperationException){} };title.Children.Add(drag);
   var actions=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};Grid.SetColumn(actions,1);title.Children.Add(actions);
   lockButton=Icon("", "锁定位置与尺寸",()=>SetLocked(!prefs.Locked));lockButton.Name="LockShortcut";UpdateLockIcon();actions.Children.Add(lockButton);
-  var add=Icon("\uE710","新增日程",()=>OpenCreateEvent(DateTime.Today));add.Name="AddEvent";actions.Children.Add(add);
-  actions.Children.Add(Icon("\uE713","设置",OpenSettings));shell.Children.Add(title);
+  var add=Icon("\uE710","新增日程",()=>OpenCreateEvent(DateTime.Today));add.Name="AddEvent";addEventShortcut=add;actions.Children.Add(add);
+  browserShortcut=Icon("\uE774","在浏览器中打开 Google 日历",()=>OpenUrl("https://calendar.google.com/calendar/u/0/r"));actions.Children.Add(browserShortcut);settingsShortcut=Icon("\uE713","设置",OpenSettings);actions.Children.Add(settingsShortcut);UpdateCalendarActions();shell.Children.Add(title);
   var header=new StackPanel{Margin=new Thickness(18,15,18,12)};Grid.SetRow(header,1);shell.Children.Add(header);
   var periodGrid=new Grid();periodGrid.ColumnDefinitions.Add(new ColumnDefinition());periodGrid.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});period=Text("",24,foreground);periodGrid.Children.Add(period);
   var navigation=new StackPanel{Orientation=Orientation.Horizontal};Grid.SetColumn(navigation,1);periodGrid.Children.Add(navigation);
@@ -142,13 +142,13 @@ public partial class CalendarWindow:Window {
   var timezone=Text(TimeZoneInfo.Local.BaseUtcOffset==TimeSpan.FromHours(8)?"本地时间 · UTC+08":"本地时间 · "+TimeZoneInfo.Local.StandardName,11,muted);Grid.SetColumn(timezone,1);views.Children.Add(timezone);header.Children.Add(views);
   content=new ContentControl{Margin=new Thickness(18,0,18,8),HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch};calendarViewport=new Grid{ClipToBounds=true};calendarViewport.Children.Add(content);Grid.SetRow(calendarViewport,2);shell.Children.Add(calendarViewport);
   var footer=new Grid{Margin=new Thickness(14,0,8,0)};footer.ColumnDefinitions.Add(new ColumnDefinition());footer.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});Grid.SetRow(footer,3);shell.Children.Add(footer);statusLabel=Text(status,11,muted);statusLabel.ToolTip=status;footer.Children.Add(statusLabel);
-  syncButton=Icon("\uE72C","刷新（F5）",SyncFromButton);Grid.SetColumn(syncButton,1);footer.Children.Add(syncButton);ApplySurface();
+  syncButton=Icon("\uE72C","刷新（F5）",SyncFromButton);Grid.SetColumn(syncButton,1);footer.Children.Add(syncButton);ApplySurface();RenderTasks();
  }
  void Move(int amount){anchor=CalendarMath.Navigation(anchor,prefs.View,amount);Navigate(amount,true);}
  void QueueSync(){Dispatcher.BeginInvoke(new Action(async()=>await SyncAsync(false)));}
  void Navigate(int direction=0,bool paging=false){StopViewSlide();var previous=content.Content as UIElement;var previousTimeline=timelineViewer;double previousOffset=previousTimeline==null?0:previousTimeline.VerticalOffset;timelineMinute=540;navigationRendering=true;try{Render();}finally{navigationRendering=false;}if(direction!=0&&MotionAllowed)StartViewSlide(previous,direction,previousTimeline,previousOffset,paging);resize.Stop();resize.Interval=TimeSpan.FromMilliseconds(200);resize.Start();dirtySize=false;if(busy){pendingNavigation=true;return;}if(!demo&&google!=null&&google.Connected)QueueSync();}
  IEnumerable<CalendarEvent> VisibleEvents(){return cache.Events.Where(e=>demo||prefs.Selected.Contains(e.CalendarId));}
- void Render(){if(period==null)return;DateTime d=anchor;
+ void Render(){if(popupRise.Running){deferredRiseRender=true;return;}if(period==null)return;DateTime d=anchor;
   period.Text=CalendarMath.PeriodTitle(d,prefs.View);
   foreach(Button b in viewButtons.Children)b.Background=(string)b.Tag==prefs.View?hover:Brushes.Transparent;
   if(demo)SetStatus("示例日程 · 未连接真实账号");else UpdateStatus();RenderContent();ScheduleClock();
@@ -230,7 +230,7 @@ public partial class CalendarWindow:Window {
   var w=new Window{Title=title,Owner=this,Width=width,Height=height,MinWidth=340,MinHeight=260,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.CanResize,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=Brushes.Transparent,Foreground=foreground,FontFamily=FontFamily,FontSize=12,Resources=Resources,ShowInTaskbar=false};
   WindowChrome.SetWindowChrome(w,new WindowChrome{CaptionHeight=0,ResizeBorderThickness=new Thickness(5),GlassFrameThickness=new Thickness(-1),UseAeroCaptionButtons=false});
   w.SourceInitialized+=delegate{Native.WidgetStyle(new WindowInteropHelper(w).Handle);AttachMaterialHook(w);ApplyDialogMaterial(w);};
-  var layout=new DockPanel();var caption=new Grid{Height=40,Margin=new Thickness(14,0,6,0)};caption.ColumnDefinitions.Add(new ColumnDefinition());caption.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});var label=Text(title,12,foreground);label.VerticalAlignment=VerticalAlignment.Center;label.Background=Brushes.Transparent;label.MouseLeftButtonDown+=delegate{try{w.DragMove();}catch(InvalidOperationException){}};caption.Children.Add(label);var close=Icon("\uE8BB","关闭",w.Close);Grid.SetColumn(close,1);caption.Children.Add(close);DockPanel.SetDock(caption,Dock.Top);layout.Children.Add(caption);layout.Children.Add(new ContentControl{HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch});var frame=new Border{CornerRadius=new CornerRadius(0),BorderThickness=new Thickness(0),BorderBrush=Brushes.Transparent,Background=MaterialBrush(),Child=layout,SnapsToDevicePixels=true,UseLayoutRounding=true};w.Tag=frame;w.Content=frame;InputFeedback.Attach(w);
+  var layout=new DockPanel();var caption=new Grid{Name="DialogDragArea",Height=44,Background=Brushes.Transparent,Margin=new Thickness(14,0,6,0)};AttachDialogDrag(caption,w);caption.ColumnDefinitions.Add(new ColumnDefinition());caption.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});var label=Text(title,12,foreground);label.VerticalAlignment=VerticalAlignment.Center;label.Background=Brushes.Transparent;caption.Children.Add(label);var close=Icon("\uE8BB","关闭",w.Close);Grid.SetColumn(close,1);caption.Children.Add(close);DockPanel.SetDock(caption,Dock.Top);layout.Children.Add(caption);layout.Children.Add(new ContentControl{HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch});var frame=new Border{CornerRadius=new CornerRadius(0),BorderThickness=new Thickness(0),BorderBrush=Brushes.Transparent,Background=MaterialBrush(),Child=layout,SnapsToDevicePixels=true,UseLayoutRounding=true};w.Tag=frame;w.Content=frame;InputFeedback.Attach(w);AttachDialogRise(w);
   return w;
  }
  void SetDialogContent(Window w,UIElement body){var layout=(DockPanel)((Border)w.Tag).Child;((ContentControl)layout.Children[layout.Children.Count-1]).Content=body;}
@@ -242,7 +242,7 @@ public partial class CalendarWindow:Window {
   panel.Children.Add(Wrap(ev.AllDay?ev.StartLocal.ToString("yyyy年M月d日")+" – "+ev.EndLocal.AddDays(-1).ToString("M月d日")+" · 全天":ev.StartLocal.ToString("yyyy年M月d日 HH:mm")+" – "+ev.EndLocal.ToString("M月d日 HH:mm"),13,foreground));
   panel.Children.Add(Wrap("时间按 Windows 本地时区显示",11,muted));if(!string.IsNullOrEmpty(ev.Location)){var location=Wrap(ev.Location,13,foreground);location.Margin=new Thickness(0,14,0,0);panel.Children.Add(location);}
   if(!string.IsNullOrEmpty(ev.Description)){var description=Wrap(ev.Description,12,muted);description.Margin=new Thickness(0,18,0,18);panel.Children.Add(description);}
-  var open=Button("在 Google 日历中打开","打开原始日程",()=>{if(demo){MessageBox.Show(w,"此事件为示例。","日历");return;}OpenUrl(ev.Link);});open.HorizontalAlignment=HorizontalAlignment.Left;open.Margin=new Thickness(0,18,0,0);panel.Children.Add(open);AddDeleteAction(panel,w,ev);AddEditAction(w,ev);SetDialogContent(w,new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});eventDetail=w;
+  AddCaptionBrowser(w,ev.Link,"在浏览器中打开日程");AddDeleteAction(panel,w,ev);AddEditAction(w,ev);SetDialogContent(w,new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});eventDetail=w;
   CloseDetailOnFocusLoss(w);
   w.KeyDown+=delegate(object sender,System.Windows.Input.KeyEventArgs e){if(e.Key==System.Windows.Input.Key.Escape){e.Handled=true;w.Close();}};
   w.Closed+=delegate{if(eventDetail==w)eventDetail=null;};w.Show();w.Activate();
@@ -251,17 +251,17 @@ public partial class CalendarWindow:Window {
   if(eventDetail!=null)eventDetail.Close();
   if(dayDetail!=null)dayDetail.Close();
   var w=Dialog(day.ToString("M月d日 dddd",CultureInfo.GetCultureInfo("zh-CN")),420,470);var panel=new StackPanel{Margin=new Thickness(18)};var events=CalendarMath.ForDay(VisibleEvents(),day);
-  var add=Icon("\uE710","新增当天日程",()=>{w.Close();OpenCreateEvent(day);});add.Name="AddDayEvent";var caption=(Grid)((DockPanel)((Border)w.Tag).Child).Children[0];caption.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});var close=caption.Children.OfType<Button>().Single();Grid.SetColumn(close,2);Grid.SetColumn(add,1);caption.Children.Add(add);
+  var add=Icon("\uE710","新增当天日程",()=>{w.Close();OpenCreateEvent(day);});add.Name="AddDayEvent";var caption=(Grid)((DockPanel)((Border)w.Tag).Child).Children[0];caption.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});var close=caption.Children.OfType<Button>().Single();Grid.SetColumn(close,2);Grid.SetColumn(add,1);caption.Children.Add(add);AddCaptionBrowser(w,"https://calendar.google.com/calendar/u/0/r/day/"+day.ToString("yyyy/M/d"),"在浏览器中打开当天日历");
   FillDayEvents(panel,w,day);
   SetDialogContent(w,new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});dayDetail=w;CloseDetailOnFocusLoss(w);w.Closed+=delegate{if(dayDetail==w)dayDetail=null;};w.Show();w.Activate();
  }
  void CloseDetailOnFocusLoss(Window detail){
   detail.Deactivated+=delegate{Dispatcher.BeginInvoke(new Action(()=>{
-   if(!detail.IsVisible||detail.IsActive||detail.OwnedWindows.Cast<Window>().Any(w=>w.IsVisible))return;
+   if(!detail.IsVisible||detail.IsActive||detail.OwnedWindows.Cast<Window>().Any(w=>w!=tasksWindow&&w.IsVisible))return;
    detail.Close();if(!rendering)Dispatcher.BeginInvoke(new Action(DismissIfOutside),DispatcherPriority.ContextIdle);
   }),DispatcherPriority.Background);};
  }
- void OpenUrl(string url){Uri u;if(Uri.TryCreate(url,UriKind.Absolute,out u)&&u.Scheme=="https"&&(u.Host=="calendar.google.com"||u.Host=="www.google.com"))Process.Start(new ProcessStartInfo(u.AbsoluteUri){UseShellExecute=true});}
+ void OpenUrl(string url){Uri u;if(Uri.TryCreate(url,UriKind.Absolute,out u)&&u.Scheme=="https"&&(u.Host=="calendar.google.com"||u.Host=="www.google.com"||u.Host=="tasks.google.com"))Process.Start(new ProcessStartInfo(u.AbsoluteUri){UseShellExecute=true});}
  void Section(StackPanel p,string title){var t=Text(title,14,foreground);t.Margin=new Thickness(0,22,0,10);p.Children.Add(t);}
  CheckBox Check(string label,bool value,Action<bool> changed){var c=new CheckBox{Content=label,IsChecked=value,Foreground=foreground,Margin=new Thickness(0,6,0,6)};c.SetResourceReference(Control.ForegroundProperty,"ControlText");c.Checked+=delegate{changed(true);};c.Unchecked+=delegate{changed(false);};return c;}
  void OpenSettings(){
@@ -292,7 +292,7 @@ public partial class CalendarWindow:Window {
  async void BeginLogin(){
   if(demo||google==null||busy||disconnecting)return;if(!google.Configured){MessageBox.Show(this,"应用缺少 Google 登录配置，请使用完整安装包。","无法登录");return;}
   busy=true;operation=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);SetStatus("请在浏览器中完成登录 · 设置中可取消");poll.Stop();
-  try{await google.LoginAsync(operation.Token);authExpired=false;failures=0;metadataRead=DateTime.MinValue;cache=new CacheData();prefs.Selected.Clear();prefs.SelectionSaved=false;store.Delete("calendar.bin");Save();SetStatus("已登录，正在读取日历…");}
+  try{await google.LoginAsync(operation.Token);authExpired=false;failures=0;metadataRead=DateTime.MinValue;cache=new CacheData();ClearTasks();prefs.Selected.Clear();prefs.SelectionSaved=false;store.Delete("calendar.bin");Save();SetStatus("已登录，正在读取日历…");}
   catch(OperationCanceledException){SetStatus("登录已取消或超时");}
   catch(Exception ex){SetStatus("登录未完成");MessageBox.Show(this,Friendly(ex),"Google 登录");}
   finally{busy=false;operation.Dispose();operation=null;}
@@ -300,7 +300,7 @@ public partial class CalendarWindow:Window {
  }
  async Task DisconnectAsync(){
   if(google==null||disconnecting)return;disconnecting=true;
-  try{poll.Stop();pendingNavigation=false;if(operation!=null)operation.Cancel();string refresh=google.RefreshToken;google.Clear();cache=new CacheData();prefs.Selected.Clear();prefs.SelectionSaved=false;authExpired=false;failures=0;retryAfter=DateTime.MinValue;metadataRead=DateTime.MinValue;store.Delete("calendar.bin");Save();Render();await google.RevokeAsync(refresh);}
+  try{poll.Stop();pendingNavigation=false;if(operation!=null)operation.Cancel();string refresh=google.RefreshToken;google.Clear();cache=new CacheData();ClearTasks();prefs.Selected.Clear();prefs.SelectionSaved=false;authExpired=false;failures=0;retryAfter=DateTime.MinValue;metadataRead=DateTime.MinValue;store.Delete("calendar.bin");Save();Render();await google.RevokeAsync(refresh);}
   finally{disconnecting=false;Render();Schedule();}
  }
  async void SyncFromButton(){await SyncAsync(true);}
@@ -327,7 +327,7 @@ public partial class CalendarWindow:Window {
      cache.Events=cache.Events.Where(e=>e.CalendarId!=cal.Id||!e.InRange(range.Item1,range.Item2)).Concat(fresh).GroupBy(e=>e.CalendarId+"\n"+e.Id).Select(g=>g.Last()).ToList();cache.Updated[cal.Id]=DateTime.UtcNow.ToString("o");completed++;
     }catch(LoginRequiredException){throw;}catch(RetryException){throw;}catch(OperationCanceledException){throw;}catch(Exception ex){failed++;error=Friendly(ex);}
    }
-   cache.Events=cache.Events.Where(e=>calendars.Any(c=>c.Id==e.CalendarId)).ToList();ct.ThrowIfCancellationRequested();store.Write("calendar.bin",cache,true);succeeded=failed==0;
+   cache.Events=cache.Events.Where(e=>calendars.Any(c=>c.Id==e.CalendarId)).ToList();ct.ThrowIfCancellationRequested();store.Write("calendar.bin",cache,true);await SyncTasksAsync(ct);succeeded=failed==0;
    if(failed>0)SetStatus("部分日历同步失败（"+failed+" 个），保留旧日程");
   }catch(LoginRequiredException){authExpired=true;error="登录已过期，请在设置中重新登录。";}
    catch(RetryException ex){retryAfter=DateTime.UtcNow.Add(ex.Delay);error=ex.Message;}
@@ -344,7 +344,7 @@ public partial class CalendarWindow:Window {
   poll.Stop();midnight.Stop();ScheduleClock();
   if(exiting||lifetime.IsCancellationRequested||suspended||sessionLocked)return;
   midnight.Interval=DateTime.Today.AddDays(1)-DateTime.Now+TimeSpan.FromSeconds(1);midnight.Start();
-  if(demo||google==null||!google.Connected||authExpired||busy||(prefs.SelectionSaved&&prefs.Selected.Count==0))return;
+  if(demo||google==null||!google.Connected||authExpired||busy||(prefs.SelectionSaved&&prefs.Selected.Count==0&&!google.CanTasks))return;
   var delay=TimeSpan.FromMinutes(CalendarMath.PollMinutes(IsVisible,Battery()||BatterySaving(),failures));if(retryAfter>DateTime.UtcNow&&retryAfter-DateTime.UtcNow>delay)delay=retryAfter-DateTime.UtcNow;poll.Interval=delay;poll.Start();
  }
  void ScheduleClock(){clock.Stop();if(IsVisible&&prefs.View=="week"&&!suspended&&!sessionLocked){clock.Interval=TimeSpan.FromSeconds(60-DateTime.Now.Second);clock.Start();}}
@@ -355,40 +355,40 @@ public partial class CalendarWindow:Window {
  void OnPreferences(object sender,UserPreferenceChangedEventArgs e){Dispatcher.BeginInvoke(new Action(()=>{Build();Render();ApplyMaterial();}));}
  void CreateTray(){
   tray=new Forms.NotifyIcon{Text="日历",Icon=System.Drawing.Icon.ExtractAssociatedIcon(Assembly.GetExecutingAssembly().Location),Visible=true};
-  var menu=new Forms.ContextMenuStrip();menu.Items.Add("打开日历",null,delegate{Dispatcher.BeginInvoke(new Action(ShowCalendar));});menu.Items.Add("刷新",null,delegate{Dispatcher.BeginInvoke(new Action(SyncFromButton));});menu.Items.Add("设置",null,delegate{Dispatcher.BeginInvoke(new Action(()=>{ShowCalendar();OpenSettings();}));});menu.Items.Add(new Forms.ToolStripSeparator());menu.Items.Add("退出",null,delegate{Dispatcher.BeginInvoke(new Action(Exit));});tray.ContextMenuStrip=menu;
-  tray.MouseClick+=delegate(object sender,Forms.MouseEventArgs e){if(e.Button==Forms.MouseButtons.Left)Dispatcher.BeginInvoke(new Action(TogglePopup));};
+  tray.MouseClick+=delegate(object sender,Forms.MouseEventArgs e){if(e.Button==Forms.MouseButtons.Left)Dispatcher.BeginInvoke(new Action(TogglePopup));else if(e.Button==Forms.MouseButtons.Right)Dispatcher.BeginInvoke(new Action(ShowTrayMenu));};
  }
  public void StartInTray(){
-  if(started)return;started=true;new WindowInteropHelper(this).EnsureHandle();Render();Schedule();BeginUpdateChecks();
+  if(started)return;started=true;new WindowInteropHelper(this).EnsureHandle();Render();Schedule();BeginUpdateChecks();QueueColdWarmup();
   if(!rendering&&!demo&&google!=null&&google.Connected)Dispatcher.BeginInvoke(new Action(async()=>await SyncAsync(false)));
  }
  internal void TogglePopup(){if(IsVisible){HidePopup();return;}if(DateTime.UtcNow-lastAutoDismiss<TimeSpan.FromMilliseconds(250))return;ShowCalendar();}
  public void ShowCalendar(){
-  if(exiting)return;IntPtr hwnd=new WindowInteropHelper(this).EnsureHandle();var cursor=Forms.Cursor.Position;var screen=Forms.Screen.FromPoint(cursor);double scale=Native.MonitorScale(cursor);
+  CancelColdWarmup();if(exiting)return;IntPtr hwnd=new WindowInteropHelper(this).EnsureHandle();var cursor=Forms.Cursor.Position;var screen=Forms.Screen.FromPoint(cursor);double scale=Native.MonitorScale(cursor);
   var work=screen.WorkingArea;int gap=(int)(8*scale);MinWidth=Math.Min(480,Math.Max(100,(work.Width-gap*2)/scale));MinHeight=Math.Min(480,Math.Max(100,(work.Height-gap*2)/scale));
+  if(!rendering){double available=(work.Width-gap*2)/scale;MinWidth=Math.Min(480,Math.Max(280,available-250));double taskWidth=CalendarMath.Clip(prefs.TasksWidth,240,Math.Max(240,Math.Min(520,available-MinWidth-10)));prefs.TasksWidth=taskWidth;if(tasksWindow!=null){linkingTasks=true;try{tasksWindow.Width=taskWidth;}finally{linkingTasks=false;}}Width=Math.Min(Width,Math.Max(MinWidth,available-taskWidth-10));}
   Width=Math.Min(Width,(work.Width-gap*2)/scale);Height=Math.Min(Height,(work.Height-gap*2)/scale);
   var bounds=PopupPlacement.Bounds(work,(int)Math.Round(Width*scale),(int)Math.Round(Height*scale),cursor,gap);
   WindowStartupLocation=WindowStartupLocation.Manual;Topmost=false;WindowState=WindowState.Normal;
-  bool opening=!IsVisible;popupRise.Stop(false);bool animate=opening&&MotionAllowed;if(animate)popupRise.Start(bounds,Math.Max(12,(int)Math.Round(20*scale)),r=>Native.Position(hwnd,r));else Native.Position(hwnd,bounds);if(opening)Show();if(!animate)Native.Position(hwnd,bounds);Activate();ApplyMaterial();if(!animate)QueuePreparedViews();
+  bool opening=!IsVisible;popupRise.Stop(false);bool animate=opening&&MotionAllowed;var startBounds=bounds;if(animate)startBounds.Y+=Math.Max(12,(int)Math.Round(20*scale));Native.Position(hwnd,startBounds);if(opening)Show();UpdateLayout();if(tasksWindow!=null&&tasksWindow.IsVisible)tasksWindow.UpdateLayout();Activate();ApplyMaterial();if(animate)StartCalendarRise(bounds,Math.Max(12,(int)Math.Round(20*scale)));else{Native.Position(hwnd,bounds);FinishCalendarRise();QueuePreparedViews();}
  }
  internal void HidePopup(){if(!IsVisible)return;StopMotion();ClearPreparedViews();Save();Hide();Schedule();}
  void DismissIfOutside(){
-  if(exiting||!IsVisible||IsActive||IsKeyboardFocusWithin||OwnedWindows.Cast<Window>().Any(w=>w.IsVisible))return;
+  if(exiting||!IsVisible||IsActive||IsKeyboardFocusWithin||OwnedWindows.Cast<Window>().Any(w=>w!=tasksWindow&&w.IsVisible))return;
   IntPtr foreground=Native.GetForegroundWindow();if(foreground==IntPtr.Zero||foreground==new WindowInteropHelper(this).Handle)return;
   uint process;Native.GetWindowThreadProcessId(foreground,out process);if(process==0||process==(uint)Process.GetCurrentProcess().Id)return;
   lastAutoDismiss=DateTime.UtcNow;HidePopup();
  }
  void SetStartup(bool enabled){using(var key=Registry.CurrentUser.CreateSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Run")){if(enabled)key.SetValue("DeskCalendar","\""+Assembly.GetExecutingAssembly().Location+"\"");else key.DeleteValue("DeskCalendar",false);}}
  void Save(){if(!IsLoaded)return;prefs.Left=Left;prefs.Top=Top;prefs.Width=ActualWidth;prefs.Height=ActualHeight;try{store.Write("settings.json",prefs,false);}catch(IOException){SetStatus("窗口设置未保存，检查目录权限");}catch(UnauthorizedAccessException){SetStatus("窗口设置未保存，检查目录权限");}}
- void OnClosing(object sender,CancelEventArgs e){if(!exiting){e.Cancel=true;HidePopup();return;}StopMotion();ClearPreparedViews();Save();poll.Stop();clock.Stop();midnight.Stop();resize.Stop();saveTimer.Stop();updateTimer.Stop();lifetime.Cancel();updater.Dispose();if(operation!=null)operation.Cancel();if(tray!=null){tray.Visible=false;var icon=tray.Icon;tray.Dispose();if(icon!=null)icon.Dispose();}SystemEvents.PowerModeChanged-=OnPower;SystemEvents.SessionSwitch-=OnSession;SystemEvents.DisplaySettingsChanged-=OnDisplays;SystemEvents.UserPreferenceChanged-=OnPreferences;NetworkChange.NetworkAvailabilityChanged-=OnNetwork;}
+ void OnClosing(object sender,CancelEventArgs e){if(!exiting){e.Cancel=true;HidePopup();return;}StopMotion();CancelColdWarmup();ClearPreparedViews();Save();poll.Stop();clock.Stop();midnight.Stop();resize.Stop();saveTimer.Stop();updateTimer.Stop();lifetime.Cancel();updater.Dispose();if(operation!=null)operation.Cancel();if(tray!=null){tray.Visible=false;var icon=tray.Icon;tray.Dispose();if(icon!=null)icon.Dispose();}SystemEvents.PowerModeChanged-=OnPower;SystemEvents.SessionSwitch-=OnSession;SystemEvents.DisplaySettingsChanged-=OnDisplays;SystemEvents.UserPreferenceChanged-=OnPreferences;NetworkChange.NetworkAvailabilityChanged-=OnNetwork;}
  public void Exit(){exiting=true;Close();Application.Current.Shutdown();}
  bool SystemTransparency(){try{using(var key=Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"))return key==null||Convert.ToInt32(key.GetValue("EnableTransparency",1))!=0;}catch{return true;}}
  bool GlassEnabled(){return prefs.Glass&&!BatterySaving()&&!SystemParameters.HighContrast&&SystemTransparency();}
- void AttachMaterialHook(Window w){var source=HwndSource.FromHwnd(new WindowInteropHelper(w).Handle);if(source!=null)source.AddHook(delegate(IntPtr hwnd,int message,IntPtr param,IntPtr data,ref bool handled){if(w==this&&prefs.Locked&&message==0x112&&(((long)param&0xFFF0)==0xF000||((long)param&0xFFF0)==0xF010)){handled=true;return IntPtr.Zero;}if(message==0x86&&GlassEnabled()){handled=true;return Native.DefWindowProc(hwnd,message,new IntPtr(1),new IntPtr(-1));}return IntPtr.Zero;});}
+ void AttachMaterialHook(Window w){var source=HwndSource.FromHwnd(new WindowInteropHelper(w).Handle);if(source!=null)source.AddHook(delegate(IntPtr hwnd,int message,IntPtr param,IntPtr data,ref bool handled){if((w==this||w==tasksWindow)&&prefs.Locked&&message==0x112&&(((long)param&0xFFF0)==0xF000||((long)param&0xFFF0)==0xF010)){handled=true;return IntPtr.Zero;}if(message==0x06&&w==tasksWindow&&GlassEnabled()){Native.DefWindowProc(hwnd,0x86,new IntPtr(1),new IntPtr(-1));}if(message==0x86&&GlassEnabled()){handled=true;return Native.DefWindowProc(hwnd,message,new IntPtr(1),new IntPtr(-1));}return IntPtr.Zero;});}
  Brush MaterialBrush(){if(SystemParameters.HighContrast)return SystemColors.WindowBrush;byte alpha=GlassEnabled()?(byte)(CalendarMath.Clip(prefs.Tint,35,85)*255/100):(byte)255;return new SolidColorBrush(prefs.Theme=="light"?Color.FromArgb(alpha,240,240,237):Color.FromArgb(alpha,8,10,12));}
  void PaintWindowSurface(Border frame){if(frame==null)return;frame.Background=MaterialBrush();frame.BorderBrush=Brushes.Transparent;frame.BorderThickness=new Thickness(0);frame.CornerRadius=new CornerRadius(0);frame.SnapsToDevicePixels=true;frame.UseLayoutRounding=true;}
  void ApplySurface(){PaintWindowSurface(surface);foreach(Window w in OwnedWindows)ApplyDialogMaterial(w);}
- void ApplyWindowMaterial(Window w){IntPtr hwnd=new WindowInteropHelper(w).Handle;if(hwnd==IntPtr.Zero)return;string state=(prefs.Theme=="light"?"light":"dark")+(GlassEnabled()?":glass":":solid");string previous;if(materialStates.TryGetValue(w,out previous)&&previous==state)return;if(!materialStates.ContainsKey(w))w.Closed+=delegate{materialStates.Remove(w);};materialStates[w]=state;MaterialUpdates++;Native.Dark(hwnd,prefs.Theme!="light");var source=HwndSource.FromHwnd(hwnd);if(source!=null&&source.CompositionTarget!=null)source.CompositionTarget.BackgroundColor=Colors.Transparent;Native.Backdrop(hwnd,GlassEnabled());}
+ void ApplyWindowMaterial(Window w){IntPtr hwnd=new WindowInteropHelper(w).Handle;if(hwnd==IntPtr.Zero)return;string state=(prefs.Theme=="light"?"light":"dark")+(GlassEnabled()?":glass":":solid");string previous;if(materialStates.TryGetValue(w,out previous)&&previous==state)return;if(!materialStates.ContainsKey(w))w.Closed+=delegate{materialStates.Remove(w);};materialStates[w]=state;MaterialUpdates++;Native.Dark(hwnd,prefs.Theme!="light");var source=HwndSource.FromHwnd(hwnd);if(source!=null&&source.CompositionTarget!=null)source.CompositionTarget.BackgroundColor=Colors.Transparent;Native.Backdrop(hwnd,GlassEnabled());if(!Native.StableBlur(hwnd,GlassEnabled()))Native.Backdrop(hwnd,GlassEnabled());}
  void ApplyDialogMaterial(Window w){var frame=w.Tag as Border;PaintWindowSurface(frame);w.Foreground=foreground;ApplyWindowMaterial(w);}
  void ApplyMaterial(){ApplySurface();ApplyWindowMaterial(this);}
  public void RenderTo(string directory){Directory.CreateDirectory(directory);foreach(string view in new[]{"month","week","quarter","year"}){prefs.View=view;Build();Render();UpdateLayout();var frame=new DispatcherFrame();Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>frame.Continue=false));Dispatcher.PushFrame(frame);UpdateLayout();var bmp=new System.Windows.Media.Imaging.RenderTargetBitmap((int)ActualWidth,(int)ActualHeight,96,96,PixelFormats.Pbgra32);bmp.Render(surface);var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));using(var file=File.Create(System.IO.Path.Combine(directory,view+".png")))encoder.Save(file);} }
@@ -405,6 +405,16 @@ public static class PopupPlacement {
  }
 }
 public static class Native {
+ [DllImport("user32.dll")] static extern IntPtr BeginDeferWindowPos(int count);
+ [DllImport("user32.dll")] static extern IntPtr DeferWindowPos(IntPtr batch,IntPtr hwnd,IntPtr after,int x,int y,int width,int height,uint flags);
+ [DllImport("user32.dll")] static extern bool EndDeferWindowPos(IntPtr batch);
+ public static void MovePair(IntPtr main,IntPtr companion,int x,int y,int companionOffset){
+  const uint flags=0x215;IntPtr batch=BeginDeferWindowPos(companion==IntPtr.Zero?1:2);
+  if(batch!=IntPtr.Zero)batch=DeferWindowPos(batch,main,IntPtr.Zero,x,y,0,0,flags);
+  if(batch!=IntPtr.Zero&&companion!=IntPtr.Zero)batch=DeferWindowPos(batch,companion,IntPtr.Zero,x+companionOffset,y,0,0,flags);
+  if(batch!=IntPtr.Zero&&EndDeferWindowPos(batch))return;
+  SetWindowPos(main,IntPtr.Zero,x,y,0,0,flags);if(companion!=IntPtr.Zero)SetWindowPos(companion,IntPtr.Zero,x+companionOffset,y,0,0,flags);
+ }
  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint process);
  [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int width,int height,uint flags);
@@ -431,5 +441,15 @@ public static class Native {
  public static bool SuppressBorder(IntPtr hwnd){int border=unchecked((int)0xFFFFFFFE);return DwmSetWindowAttribute(hwnd,34,ref border,4)==0;}
  public static int BackdropType(IntPtr hwnd){int value;return DwmGetWindowAttribute(hwnd,38,out value,4)==0?value:-1;}
  public static void Backdrop(IntPtr hwnd,bool glass){int backdrop=glass?3:1;DwmSetWindowAttribute(hwnd,38,ref backdrop,4);var m=new Margins{Left=-1,Right=-1,Top=-1,Bottom=-1};DwmExtendFrameIntoClientArea(hwnd,ref m);}
+ [StructLayout(LayoutKind.Sequential)] struct AccentPolicy {public int State,Flags,Color,Animation;}
+ [StructLayout(LayoutKind.Sequential)] struct CompositionData {public int Attribute;public IntPtr Data;public int Size;}
+ [DllImport("user32.dll")] static extern int SetWindowCompositionAttribute(IntPtr hwnd,ref CompositionData data);
+ // An owned companion window is inactive while its owner has focus. The system
+ // transient backdrop can become opaque then; native blur behind the same WPF
+ // tint remains composited without stealing focus or polling activation state.
+ public static bool StableBlur(IntPtr hwnd,bool enabled){
+  int backdrop=1;DwmSetWindowAttribute(hwnd,38,ref backdrop,4);var margins=new Margins();DwmExtendFrameIntoClientArea(hwnd,ref margins);var policy=new AccentPolicy{State=enabled?3:0};int size=Marshal.SizeOf(policy);IntPtr memory=Marshal.AllocHGlobal(size);
+  try{Marshal.StructureToPtr(policy,memory,false);var data=new CompositionData{Attribute=19,Data=memory,Size=size};return SetWindowCompositionAttribute(hwnd,ref data)!=0;}catch(EntryPointNotFoundException){return false;}finally{Marshal.FreeHGlobal(memory);}
+ }
 }
 }

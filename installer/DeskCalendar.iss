@@ -1,4 +1,4 @@
-#define AppVersion "1.0.29"
+#define AppVersion "1.0.56"
 #ifndef PayloadDir
   #define PayloadDir "..\dist\app"
 #endif
@@ -45,6 +45,7 @@ Source: "{#PayloadDir}\Google登录步骤.html"; DestDir: "{app}"; Flags: ignore
 Source: "{#PayloadDir}\Google登录步骤.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\验证记录.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PayloadDir}\待办使用说明.md"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\Google Calendar Desktop"; Filename: "{app}\DeskCalendar.exe"
 Name: "{autodesktop}\Google Calendar Desktop"; Filename: "{app}\DeskCalendar.exe"; Tasks: desktopicon
