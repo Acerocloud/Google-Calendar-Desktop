@@ -76,23 +76,23 @@ public partial class CalendarWindow:Window {
   if(!double.IsNaN(prefs.Left)&&!double.IsNaN(prefs.Top)&&prefs.Left>=SystemParameters.VirtualScreenLeft&&prefs.Left+Width<=SystemParameters.VirtualScreenLeft+SystemParameters.VirtualScreenWidth&&prefs.Top>=SystemParameters.VirtualScreenTop&&prefs.Top+80<SystemParameters.VirtualScreenTop+SystemParameters.VirtualScreenHeight){Left=prefs.Left;Top=prefs.Top;WindowStartupLocation=WindowStartupLocation.Manual;}
   WindowChrome.SetWindowChrome(this,new WindowChrome{CaptionHeight=0,ResizeBorderThickness=new Thickness(prefs.Locked?0:5),GlassFrameThickness=new Thickness(-1),UseAeroCaptionButtons=false});
   SourceInitialized+=delegate{IntPtr hwnd=new WindowInteropHelper(this).Handle;Native.WidgetStyle(hwnd);AttachMaterialHook(this);ApplyMaterial();};
-  Loaded+=delegate{Render();if(!renderMode&&!started)StartInTray();};
-  Deactivated+=delegate{if(!renderMode)Dispatcher.BeginInvoke(new Action(DismissIfOutside),DispatcherPriority.Background);};
-  SizeChanged+=delegate{if(!IsLoaded)return;dirtySize=true;resize.Stop();resize.Start();saveTimer.Stop();saveTimer.Start();};
+  Loaded+=delegate{if(content==null||content.Content==null)Render();if(!coldPreparing&&!renderMode&&!started)StartInTray();};
+  Deactivated+=delegate{if(!renderMode&&!coldPreparing)Dispatcher.BeginInvoke(new Action(DismissIfOutside),DispatcherPriority.Background);};
+  SizeChanged+=delegate{if(!IsLoaded||coldPreparing)return;dirtySize=true;resize.Stop();resize.Start();saveTimer.Stop();saveTimer.Start();};
   PreviewMouseDown+=delegate{popupRise.Stop(true);};
-  LocationChanged+=delegate{if(!IsLoaded||popupRise.Running)return;saveTimer.Stop();saveTimer.Start();};
+  LocationChanged+=delegate{if(!IsLoaded||coldPreparing||popupRise.Running)return;saveTimer.Stop();saveTimer.Start();};
   Closing+=OnClosing;
   StateChanged+=delegate{if(!exiting&&WindowState==WindowState.Minimized){HidePopup();WindowState=WindowState.Normal;}};
-  IsVisibleChanged+=delegate{if(!IsLoaded||renderMode)return;Schedule();if(IsVisible&&!busy&&DateTime.UtcNow-lastSyncRequest>TimeSpan.FromMinutes(2))Dispatcher.BeginInvoke(new Action(async()=>await SyncAsync(false)));};
+  IsVisibleChanged+=delegate{if(!IsLoaded||renderMode||coldPreparing)return;Schedule();if(IsVisible&&!busy&&DateTime.UtcNow-lastSyncRequest>TimeSpan.FromMinutes(2))Dispatcher.BeginInvoke(new Action(async()=>await SyncAsync(false)));};
   KeyDown+=delegate(object sender,System.Windows.Input.KeyEventArgs e){if(e.Key==System.Windows.Input.Key.Escape){HidePopup();e.Handled=true;}if(e.Key==System.Windows.Input.Key.F5){SyncFromButton();e.Handled=true;}};
   poll.Tick+=async delegate{poll.Stop();await SyncAsync(false);};
   clock.Tick+=delegate{UpdateNow();clock.Interval=TimeSpan.FromMinutes(1);};
   midnight.Tick+=delegate{midnight.Stop();Render();Schedule();};
-  resize.Interval=TimeSpan.FromMilliseconds(180);resize.Tick+=delegate{resize.Stop();if(dirtySize){dirtySize=false;RenderContent();}};
+  resize.Interval=TimeSpan.FromMilliseconds(180);resize.Tick+=delegate{resize.Stop();if(dirtySize){dirtySize=false;if(popupRise.Running)deferredRiseRender=true;else RenderContent();}};
   saveTimer.Interval=TimeSpan.FromMilliseconds(700);saveTimer.Tick+=delegate{saveTimer.Stop();Save();};
   if(!renderMode){CreateTray();SystemEvents.PowerModeChanged+=OnPower;SystemEvents.SessionSwitch+=OnSession;SystemEvents.DisplaySettingsChanged+=OnDisplays;SystemEvents.UserPreferenceChanged+=OnPreferences;NetworkChange.NetworkAvailabilityChanged+=OnNetwork;}
   try{using(var icon=System.Drawing.Icon.ExtractAssociatedIcon(Assembly.GetExecutingAssembly().Location)){base.Icon=Imaging.CreateBitmapSourceFromHIcon(icon.Handle,Int32Rect.Empty,System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());}}catch{}
-  InitTasks();InputFeedback.Attach(this);Build();InitUpdates();popupRise.Completed+=delegate{FinishCalendarRise();QueuePreparedViews();};
+  InitTasks();InputFeedback.Attach(this);Build();InitUpdates();popupRise.Completed+=delegate{FinishCalendarRise();if(!coldPreparing)QueuePreparedViews();};
  }
  SolidColorBrush BrushColor(string color){try{return new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));}catch{return new SolidColorBrush(Color.FromRgb(132,165,190));}}
  Brush Alpha(byte alpha){return new SolidColorBrush(Color.FromArgb(alpha,255,255,255));}
@@ -363,13 +363,13 @@ public partial class CalendarWindow:Window {
  }
  internal void TogglePopup(){if(IsVisible){HidePopup();return;}if(DateTime.UtcNow-lastAutoDismiss<TimeSpan.FromMilliseconds(250))return;ShowCalendar();}
  public void ShowCalendar(){
-  CancelColdWarmup();if(exiting)return;IntPtr hwnd=new WindowInteropHelper(this).EnsureHandle();var cursor=Forms.Cursor.Position;var screen=Forms.Screen.FromPoint(cursor);double scale=Native.MonitorScale(cursor);
+  if(!coldPreparing&&!coldWarmupDone&&!rendering){CancelColdWarmup();try{WarmHiddenCalendar();}catch{}}if(!coldPreparing)CancelColdWarmup();if(exiting)return;IntPtr hwnd=new WindowInteropHelper(this).EnsureHandle();var cursor=Forms.Cursor.Position;var screen=Forms.Screen.FromPoint(cursor);double scale=Native.MonitorScale(cursor);
   var work=screen.WorkingArea;int gap=(int)(8*scale);MinWidth=Math.Min(480,Math.Max(100,(work.Width-gap*2)/scale));MinHeight=Math.Min(480,Math.Max(100,(work.Height-gap*2)/scale));
   if(!rendering){double available=(work.Width-gap*2)/scale;MinWidth=Math.Min(480,Math.Max(280,available-250));double taskWidth=CalendarMath.Clip(prefs.TasksWidth,240,Math.Max(240,Math.Min(520,available-MinWidth-10)));prefs.TasksWidth=taskWidth;if(tasksWindow!=null){linkingTasks=true;try{tasksWindow.Width=taskWidth;}finally{linkingTasks=false;}}Width=Math.Min(Width,Math.Max(MinWidth,available-taskWidth-10));}
   Width=Math.Min(Width,(work.Width-gap*2)/scale);Height=Math.Min(Height,(work.Height-gap*2)/scale);
   var bounds=PopupPlacement.Bounds(work,(int)Math.Round(Width*scale),(int)Math.Round(Height*scale),cursor,gap);
   WindowStartupLocation=WindowStartupLocation.Manual;Topmost=false;WindowState=WindowState.Normal;
-  bool opening=!IsVisible;popupRise.Stop(false);bool animate=opening&&MotionAllowed;var startBounds=bounds;if(animate)startBounds.Y+=Math.Max(12,(int)Math.Round(20*scale));Native.Position(hwnd,startBounds);if(opening)Show();UpdateLayout();if(tasksWindow!=null&&tasksWindow.IsVisible)tasksWindow.UpdateLayout();Activate();ApplyMaterial();if(animate)StartCalendarRise(bounds,Math.Max(12,(int)Math.Round(20*scale)));else{Native.Position(hwnd,bounds);FinishCalendarRise();QueuePreparedViews();}
+  bool opening=!IsVisible;popupRise.Stop(false);bool animate=opening&&MotionAllowed;var startBounds=bounds;if(animate)startBounds.Y+=Math.Max(12,(int)Math.Round(20*scale));Native.Position(hwnd,startBounds);if(opening)Show();UpdateLayout();if(tasksWindow!=null&&tasksWindow.IsVisible)tasksWindow.UpdateLayout();if(!coldPreparing&&!animate)Activate();ApplyMaterial();if(animate)StartCalendarRise(bounds,Math.Max(12,(int)Math.Round(20*scale)));else{Native.Position(hwnd,bounds);FinishCalendarRise();if(!coldPreparing)QueuePreparedViews();}
  }
  internal void HidePopup(){if(!IsVisible)return;StopMotion();ClearPreparedViews();Save();Hide();Schedule();}
  void DismissIfOutside(){

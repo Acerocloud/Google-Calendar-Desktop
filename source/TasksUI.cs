@@ -26,13 +26,13 @@ public partial class CalendarWindow {
 #endif
    WindowChrome.SetWindowChrome(w,new WindowChrome{CaptionHeight=0,ResizeBorderThickness=new Thickness(prefs.Locked?0:5, prefs.Locked?0:5,0,prefs.Locked?0:5),GlassFrameThickness=new Thickness(-1),UseAeroCaptionButtons=false});
    w.SourceInitialized+=delegate{Native.WidgetStyle(new WindowInteropHelper(w).Handle);AttachMaterialHook(w);ApplyDialogMaterial(w);};
-   w.SizeChanged+=delegate(object sender,SizeChangedEventArgs e){if(linkingTasks||!w.IsLoaded)return;linkingTasks=true;try{if(e.HeightChanged)Height=Math.Max(MinHeight,w.ActualHeight);Top=w.Top;prefs.TasksWidth=w.Width;}finally{linkingTasks=false;}AlignTasks();QueuePreferencesSave();};
-   w.LocationChanged+=delegate{if(linkingTasks||!w.IsLoaded)return;linkingTasks=true;try{Top=w.Top;}finally{linkingTasks=false;}Dispatcher.BeginInvoke(new Action(AlignTasks),DispatcherPriority.Background);};
-   w.Deactivated+=delegate{Dispatcher.BeginInvoke(new Action(DismissIfOutside),DispatcherPriority.Background);};
+   w.SizeChanged+=delegate(object sender,SizeChangedEventArgs e){if(linkingTasks||coldPreparing||!w.IsLoaded)return;linkingTasks=true;try{if(e.HeightChanged)Height=Math.Max(MinHeight,w.ActualHeight);Top=w.Top;prefs.TasksWidth=w.Width;}finally{linkingTasks=false;}AlignTasks();QueuePreferencesSave();};
+   w.LocationChanged+=delegate{if(linkingTasks||coldPreparing||!w.IsLoaded)return;linkingTasks=true;try{Top=w.Top;}finally{linkingTasks=false;}Dispatcher.BeginInvoke(new Action(AlignTasks),DispatcherPriority.Background);};
+   w.Deactivated+=delegate{if(!coldPreparing)Dispatcher.BeginInvoke(new Action(DismissIfOutside),DispatcherPriority.Background);};
    w.Closing+=delegate(object sender,System.ComponentModel.CancelEventArgs e){if(!exiting){e.Cancel=true;HidePopup();}};
    InputFeedback.Attach(w);RenderTasks();
   }
-  if(!show){new WindowInteropHelper(tasksWindow).EnsureHandle();var size=new Size(tasksWindow.Width,tasksWindow.Height);tasksRoot.Measure(size);tasksRoot.Arrange(new Rect(size));tasksRoot.UpdateLayout();ApplyDialogMaterial(tasksWindow);return;}AlignTasks();linkingTasks=true;try{if(!tasksWindow.IsVisible){bool rebuild=historyTasksOpen;historyTasksOpen=false;if(rebuild)RenderTasks();tasksWindow.Show();}tasksWindow.UpdateLayout();}finally{linkingTasks=false;}AlignTasks();ApplyDialogMaterial(tasksWindow);
+  if(!show){new WindowInteropHelper(tasksWindow).EnsureHandle();var size=new Size(tasksWindow.Width,tasksWindow.Height);tasksRoot.Measure(size);tasksRoot.Arrange(new Rect(size));tasksRoot.UpdateLayout();ApplyDialogMaterial(tasksWindow);return;}AlignTasks();linkingTasks=true;try{if(!tasksWindow.IsVisible){bool rebuild=historyTasksOpen;historyTasksOpen=false;if(rebuild)RenderTasks();tasksWindow.ShowActivated=false;tasksWindow.Show();}tasksWindow.UpdateLayout();}finally{linkingTasks=false;}AlignTasks();ApplyDialogMaterial(tasksWindow);
  }
  void AlignTasks(){if(tasksWindow==null||linkingTasks)return;linkingTasks=true;try{tasksWindow.MinHeight=MinHeight;tasksWindow.Height=Math.Max(MinHeight,Height);tasksWindow.Top=Top;tasksWindow.Left=Left-tasksWindow.Width-10;var c=WindowChrome.GetWindowChrome(tasksWindow);if(c!=null)c.ResizeBorderThickness=new Thickness(prefs.Locked?0:5,prefs.Locked?0:5,0,prefs.Locked?0:5);}finally{linkingTasks=false;}}
  void ClearTasks(){todos=new TodoCache();tasksError="";prefs.TaskListId="";store.Delete("tasks.bin");RenderTasks();}
