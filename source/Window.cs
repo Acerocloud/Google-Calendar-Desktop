@@ -78,9 +78,9 @@ public partial class CalendarWindow:Window {
   SourceInitialized+=delegate{IntPtr hwnd=new WindowInteropHelper(this).Handle;Native.WidgetStyle(hwnd);AttachMaterialHook(this);ApplyMaterial();};
   Loaded+=delegate{if(content==null||content.Content==null)Render();if(!coldPreparing&&!renderMode&&!started)StartInTray();};
   Deactivated+=delegate{if(!renderMode&&!coldPreparing)Dispatcher.BeginInvoke(new Action(DismissIfOutside),DispatcherPriority.Background);};
-  SizeChanged+=delegate{if(!IsLoaded||coldPreparing)return;dirtySize=true;resize.Stop();resize.Start();saveTimer.Stop();saveTimer.Start();};
+  SizeChanged+=delegate{if(!IsLoaded||coldPreparing)return;AnchorHome();dirtySize=true;resize.Stop();resize.Start();saveTimer.Stop();saveTimer.Start();};
   PreviewMouseDown+=delegate{popupRise.Stop(true);};
-  LocationChanged+=delegate{if(!IsLoaded||coldPreparing||popupRise.Running)return;saveTimer.Stop();saveTimer.Start();};
+  LocationChanged+=delegate{if(!IsLoaded||coldPreparing||popupRise.Running)return;AnchorHome();saveTimer.Stop();saveTimer.Start();};
   Closing+=OnClosing;
   StateChanged+=delegate{if(!exiting&&WindowState==WindowState.Minimized){HidePopup();WindowState=WindowState.Normal;}};
   IsVisibleChanged+=delegate{if(!IsLoaded||renderMode||coldPreparing)return;Schedule();if(IsVisible&&!busy&&DateTime.UtcNow-lastSyncRequest>TimeSpan.FromMinutes(2))Dispatcher.BeginInvoke(new Action(async()=>await SyncAsync(false)));};
@@ -128,7 +128,7 @@ public partial class CalendarWindow:Window {
   Theme();Styles();Resources["TodayHoverBackground"]=SystemParameters.HighContrast?SystemColors.HighlightBrush:BrushColor("#D4DCE5");Resources["TodayPressedBackground"]=SystemParameters.HighContrast?SystemColors.HighlightBrush:BrushColor("#B9C6D5");Resources["TodayHoverText"]=SystemParameters.HighContrast?SystemColors.HighlightTextBrush:BrushColor("#101820");SettingsResources();ConfigureToolTips();InputFeedback.ConfigureResources(Resources);foreach(Window owned in OwnedWindows)owned.Resources=Resources;shell=new Grid();shell.RowDefinitions.Add(new RowDefinition{Height=new GridLength(42)});shell.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});shell.RowDefinitions.Add(new RowDefinition());shell.RowDefinitions.Add(new RowDefinition{Height=new GridLength(34)});
   surface=new Border{CornerRadius=new CornerRadius(0),BorderThickness=new Thickness(0),BorderBrush=Brushes.Transparent,Child=shell,SnapsToDevicePixels=true,UseLayoutRounding=true};Content=surface;
   var title=new Grid{Margin=new Thickness(14,0,8,0)};title.ColumnDefinitions.Add(new ColumnDefinition());title.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
-  var drag=Text("日历",12,muted);drag.HorizontalAlignment=HorizontalAlignment.Stretch;drag.Background=Brushes.Transparent;drag.MouseLeftButtonDown+=delegate{if(!prefs.Locked)try{DragMove();}catch(InvalidOperationException){} };title.Children.Add(drag);
+  var drag=Text("日历",12,muted);drag.HorizontalAlignment=HorizontalAlignment.Stretch;drag.Background=Brushes.Transparent;title.Children.Add(drag);
   var actions=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};Grid.SetColumn(actions,1);title.Children.Add(actions);
   lockButton=Icon("", "锁定位置与尺寸",()=>SetLocked(!prefs.Locked));lockButton.Name="LockShortcut";UpdateLockIcon();actions.Children.Add(lockButton);
   var add=Icon("\uE710","新增日程",()=>OpenCreateEvent(DateTime.Today));add.Name="AddEvent";addEventShortcut=add;actions.Children.Add(add);
@@ -348,7 +348,7 @@ public partial class CalendarWindow:Window {
  void OnPower(object sender,PowerModeChangedEventArgs e){Dispatcher.BeginInvoke(new Action(()=>{if(e.Mode==PowerModes.Suspend){StopMotion();ClearPreparedViews();suspended=true;poll.Stop();clock.Stop();midnight.Stop();if(operation!=null)operation.Cancel();}else{bool was=suspended;suspended=false;ApplyMaterial();Schedule();ResumeUpdateChecks();if(was&&IsVisible&&!busy)SyncFromButton();}}));}
  void OnSession(object sender,SessionSwitchEventArgs e){Dispatcher.BeginInvoke(new Action(()=>{sessionLocked=e.Reason==SessionSwitchReason.SessionLock;if(sessionLocked){StopMotion();ClearPreparedViews();poll.Stop();clock.Stop();midnight.Stop();if(operation!=null)operation.Cancel();}else{Schedule();ResumeUpdateChecks();if(IsVisible&&!busy)SyncFromButton();}}));}
  void OnNetwork(object sender,NetworkAvailabilityEventArgs e){if(e.IsAvailable)Dispatcher.BeginInvoke(new Action(()=>{if(!busy&&!suspended&&!sessionLocked&&IsVisible&&DateTime.UtcNow-lastSyncRequest>TimeSpan.FromSeconds(30))SyncFromButton();}));}
- void OnDisplays(object sender,EventArgs e){Dispatcher.BeginInvoke(new Action(()=>{StopMotion();if(Left+80>SystemParameters.VirtualScreenLeft+SystemParameters.VirtualScreenWidth||Top+80>SystemParameters.VirtualScreenTop+SystemParameters.VirtualScreenHeight||Left+Width<SystemParameters.VirtualScreenLeft||Top+Height<SystemParameters.VirtualScreenTop){Left=SystemParameters.WorkArea.Left+30;Top=SystemParameters.WorkArea.Top+30;}Save();}));}
+ void OnDisplays(object sender,EventArgs e){Dispatcher.BeginInvoke(new Action(()=>{StopMotion();if(IsVisible){ShowCalendar();return;}if(Left+80>SystemParameters.VirtualScreenLeft+SystemParameters.VirtualScreenWidth||Top+80>SystemParameters.VirtualScreenTop+SystemParameters.VirtualScreenHeight||Left+Width<SystemParameters.VirtualScreenLeft||Top+Height<SystemParameters.VirtualScreenTop){Left=SystemParameters.WorkArea.Left+30;Top=SystemParameters.WorkArea.Top+30;}Save();}));}
  void OnPreferences(object sender,UserPreferenceChangedEventArgs e){Dispatcher.BeginInvoke(new Action(()=>{Build();Render();ApplyMaterial();}));}
  void CreateTray(){
   tray=new Forms.NotifyIcon{Text="日历",Icon=System.Drawing.Icon.ExtractAssociatedIcon(Assembly.GetExecutingAssembly().Location),Visible=true};
@@ -360,13 +360,13 @@ public partial class CalendarWindow:Window {
  }
  internal void TogglePopup(){if(IsVisible){HidePopup();return;}if(DateTime.UtcNow-lastAutoDismiss<TimeSpan.FromMilliseconds(250))return;ShowCalendar();}
  public void ShowCalendar(){
-  if(!coldPreparing&&!coldWarmupDone&&!rendering){CancelColdWarmup();try{WarmHiddenCalendar();}catch{}}if(!coldPreparing)CancelColdWarmup();if(exiting)return;IntPtr hwnd=new WindowInteropHelper(this).EnsureHandle();var cursor=Forms.Cursor.Position;var screen=Forms.Screen.FromPoint(cursor);double scale=Native.MonitorScale(cursor);
+  if(!coldPreparing&&!coldWarmupDone&&!rendering){CancelColdWarmup();try{WarmHiddenCalendar();}catch{}}if(!coldPreparing)CancelColdWarmup();if(exiting)return;IntPtr hwnd=new WindowInteropHelper(this).EnsureHandle();positioningHome=true;var cursor=Forms.Cursor.Position;var screen=Forms.Screen.FromPoint(cursor);double scale=Native.MonitorScale(cursor);
   var work=screen.WorkingArea;int gap=(int)(8*scale);MinWidth=Math.Min(480,Math.Max(100,(work.Width-gap*2)/scale));MinHeight=Math.Min(480,Math.Max(100,(work.Height-gap*2)/scale));
-  if(!rendering&&!prefs.TasksCollapsed){double available=(work.Width-gap*2)/scale;MinWidth=Math.Min(480,Math.Max(280,available-250));double taskWidth=CalendarMath.Clip(prefs.TasksWidth,240,Math.Max(240,Math.Min(520,available-MinWidth-10)));prefs.TasksWidth=taskWidth;if(tasksWindow!=null){linkingTasks=true;try{tasksWindow.Width=taskWidth;}finally{linkingTasks=false;}}Width=Math.Min(Width,Math.Max(MinWidth,available-taskWidth-10));}
+  if(!rendering){double available=(work.Width-gap*2)/scale;MinWidth=Math.Min(480,Math.Max(280,available-250));double taskWidth=CalendarMath.Clip(prefs.TasksWidth,240,Math.Max(240,Math.Min(520,available-MinWidth-10)));prefs.TasksWidth=taskWidth;if(tasksWindow!=null){linkingTasks=true;try{tasksWindow.Width=taskWidth;}finally{linkingTasks=false;}}Width=Math.Min(Width,Math.Max(MinWidth,available-taskWidth-10));}
   Width=Math.Min(Width,(work.Width-gap*2)/scale);Height=Math.Min(Height,(work.Height-gap*2)/scale);
-  var bounds=PopupPlacement.Bounds(work,(int)Math.Round(Width*scale),(int)Math.Round(Height*scale),cursor,gap);
+  var bounds=PopupPlacement.HomeBounds(work,(int)Math.Round(Width*scale),(int)Math.Round(Height*scale),(int)Math.Round((prefs.TasksWidth+10)*scale),gap);
   WindowStartupLocation=WindowStartupLocation.Manual;Topmost=false;WindowState=WindowState.Normal;
-  placingCalendar=true;bool opening=!IsVisible;popupRise.Stop(false);bool animate=opening&&MotionAllowed;var startBounds=bounds;if(animate)startBounds.Y+=Math.Max(12,(int)Math.Round(20*scale));Native.Position(hwnd,startBounds);if(opening)Show();UpdateLayout();if(tasksWindow!=null&&tasksWindow.IsVisible)tasksWindow.UpdateLayout();if(!coldPreparing&&!animate)Activate();ApplyMaterial();placingCalendar=false;if(animate)StartCalendarRise(bounds,Math.Max(12,(int)Math.Round(20*scale)));else{Native.Position(hwnd,bounds);FinishCalendarRise();if(!coldPreparing)QueuePreparedViews();}
+  positioningHome=true;bool opening=!IsVisible;popupRise.Stop(false);bool animate=opening&&MotionAllowed;var startBounds=bounds;if(animate)startBounds.Y+=Math.Max(12,(int)Math.Round(20*scale));Native.Position(hwnd,startBounds);if(opening)Show();UpdateLayout();if(tasksWindow!=null&&tasksWindow.IsVisible)tasksWindow.UpdateLayout();if(!coldPreparing&&!animate)Activate();ApplyMaterial();positioningHome=false;if(animate)StartCalendarRise(bounds,Math.Max(12,(int)Math.Round(20*scale)));else{Native.Position(hwnd,bounds);FinishCalendarRise();if(!coldPreparing)QueuePreparedViews();}
  }
  internal void HidePopup(){if(!IsVisible)return;StopMotion();ClearPreparedViews();Save();Hide();Schedule();}
  void DismissIfOutside(){
@@ -383,7 +383,7 @@ public partial class CalendarWindow:Window {
  bool GlassEnabled(){return prefs.Glass&&!BatterySaving()&&!SystemParameters.HighContrast&&SystemTransparency();}
  // Keep WindowChrome frame extension at zero: StableBlur owns the glass surface.
  // A focus transition must not redraw or reconfigure the non-client glass.
- void AttachMaterialHook(Window w){var source=HwndSource.FromHwnd(new WindowInteropHelper(w).Handle);if(source!=null)source.AddHook(delegate(IntPtr hwnd,int message,IntPtr param,IntPtr data,ref bool handled){if((w==this||w==tasksWindow)&&prefs.Locked&&message==0x112&&(((long)param&0xFFF0)==0xF000||((long)param&0xFFF0)==0xF010)){handled=true;return IntPtr.Zero;}if(message==0x86&&GlassEnabled()){handled=true;return new IntPtr(1);}return IntPtr.Zero;});}
+ void AttachMaterialHook(Window w){var source=HwndSource.FromHwnd(new WindowInteropHelper(w).Handle);if(source!=null)source.AddHook(delegate(IntPtr hwnd,int message,IntPtr param,IntPtr data,ref bool handled){if((w==this||w==tasksWindow)&&message==0x112&&(((long)param&0xFFF0)==0xF010||(prefs.Locked&&((long)param&0xFFF0)==0xF000))){handled=true;return IntPtr.Zero;}if(message==0x86&&GlassEnabled()){handled=true;return new IntPtr(1);}return IntPtr.Zero;});}
  Brush MaterialBrush(){if(SystemParameters.HighContrast)return SystemColors.WindowBrush;byte alpha=GlassEnabled()?(byte)(CalendarMath.Clip(prefs.Tint,35,85)*255/100):(byte)255;return new SolidColorBrush(prefs.Theme=="light"?Color.FromArgb(alpha,240,240,237):Color.FromArgb(alpha,8,10,12));}
  void PaintWindowSurface(Border frame){if(frame==null)return;frame.Background=MaterialBrush();frame.BorderBrush=Brushes.Transparent;frame.BorderThickness=new Thickness(0);frame.CornerRadius=new CornerRadius(0);frame.SnapsToDevicePixels=true;frame.UseLayoutRounding=true;}
  void ApplySurface(){PaintWindowSurface(surface);foreach(Window w in OwnedWindows)ApplyDialogMaterial(w);}
@@ -398,6 +398,7 @@ public static class TimelineScale {
  public static double Zoom(double current,int wheel){return Normalize(current*Math.Pow(1.1,wheel/120.0));}
 }
 public static class PopupPlacement {
+ public static System.Drawing.Rectangle HomeBounds(System.Drawing.Rectangle work,int width,int height,int leftReserve,int gap){width=Math.Max(1,Math.Min(width,work.Width-gap*2));height=Math.Max(1,Math.Min(height,work.Height-gap*2));return new System.Drawing.Rectangle(work.Right-gap-width,work.Bottom-gap-height,width,height);}
  public static System.Drawing.Rectangle Bounds(System.Drawing.Rectangle work,int width,int height,System.Drawing.Point anchor,int gap){
   width=Math.Max(1,Math.Min(width,work.Width-gap*2));height=Math.Max(1,Math.Min(height,work.Height-gap*2));
   int x=work.Right-gap-width;return new System.Drawing.Rectangle(x,work.Bottom-gap-height,width,height);

@@ -1,6 +1,6 @@
 # Google Calendar Desktop
 
-适用于 Windows 11 x64 的轻量 Google 日历托盘工具。点击右下角图标展开日历，点击外部或按 Esc 收起。
+适用于 Windows 11 x64 的轻量 Google 日历托盘工具。点击右下角图标展开日历，两个面板整体固定在工作区右下角，主页不可拖动。点击外部或按 Esc 收起。
 
 ## 下载安装
 
