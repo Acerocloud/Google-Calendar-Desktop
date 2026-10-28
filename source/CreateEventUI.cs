@@ -12,7 +12,7 @@ public partial class CalendarWindow {
  bool eventEditorOpen;Button addEventShortcut,browserShortcut,settingsShortcut;
  void UpdateCalendarActions(){foreach(var button in new[]{addEventShortcut,browserShortcut,settingsShortcut})if(button!=null)button.IsEnabled=!eventEditorOpen;}
  TextBox EventInput(string name,string value,bool multiline=false){
-  var box=new TextBox{Name=name,Text=value,Foreground=foreground,Background=Brushes.Transparent,BorderThickness=new Thickness(0),Padding=new Thickness(10,8,10,8),MinHeight=36,VerticalContentAlignment=VerticalAlignment.Center,AcceptsReturn=multiline,TextWrapping=multiline?TextWrapping.Wrap:TextWrapping.NoWrap};
+  var box=new TextBox{Name=name,Text=value,Foreground=foreground,Background=Brushes.Transparent,BorderThickness=new Thickness(0),Padding=new Thickness(10,8,10,8),MinHeight=36,VerticalContentAlignment=multiline?VerticalAlignment.Top:VerticalAlignment.Center,AcceptsReturn=multiline,TextWrapping=multiline?TextWrapping.Wrap:TextWrapping.NoWrap};
   box.CaretBrush=foreground;box.SelectionBrush=hover;if(multiline){box.Height=76;box.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;}
   var template=new ControlTemplate(typeof(TextBox));var host=new FrameworkElementFactory(typeof(ScrollViewer));host.Name="PART_ContentHost";template.VisualTree=host;box.Template=template;return box;
  }

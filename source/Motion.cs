@@ -43,6 +43,6 @@ public partial class CalendarWindow {
   slideGeneration++;pageSliding=false;redrawAfterSlide=false;if(calendarViewport!=null)calendarViewport.Clip=null;if(incomingShift!=null)incomingShift.BeginAnimation(TranslateTransform.XProperty,null);if(outgoingShift!=null)outgoingShift.BeginAnimation(TranslateTransform.XProperty,null);if(content!=null){content.CacheMode=null;content.BeginAnimation(UIElement.OpacityProperty,null);content.Opacity=1;content.RenderTransform=Transform.Identity;}if(outgoingView!=null){outgoingView.CacheMode=null;outgoingView.BeginAnimation(UIElement.OpacityProperty,null);outgoingView.Content=null;if(calendarViewport!=null)calendarViewport.Children.Remove(outgoingView);}outgoingView=null;incomingShift=outgoingShift=null;
  }
  void CompleteSlide(int generation){if(generation!=slideGeneration)return;bool redraw=redrawAfterSlide;StopViewSlide();if(redraw)Render();QueuePreparedViews();}
- void StopMotion(){bool redraw=redrawAfterSlide;popupRise.Stop(true);StopViewSlide();if(redraw)Render();QueuePreparedViews();}
+ void StopMotion(){StopTasksSlide();bool redraw=redrawAfterSlide;popupRise.Stop(true);StopViewSlide();if(redraw)Render();QueuePreparedViews();}
 }
 }

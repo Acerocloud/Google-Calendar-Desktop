@@ -15,16 +15,16 @@ public partial class CalendarWindow {
  void InitTasks(){
   try{todos=store.Read<TodoCache>("tasks.bin",true);}catch{todos=new TodoCache();}
   if(demo){todos=new TodoCache();todos.Lists.Add(new TaskListInfo{Id="demo",Title="我的任务"});foreach(var name in new[]{"整理报销单","确认下周会议时间","预约体检","准备分享会资料","整理照片"})todos.Items.Add(new TodoItem{Id=name,ListId="demo",Title=name,Due=name=="整理照片"?null:DateTime.Today.AddDays(name=="准备分享会资料"?3:0).ToString("yyyy-MM-dd")});}
-  SizeChanged+=delegate{AlignTasks();};LocationChanged+=delegate{AlignTasks();};IsVisibleChanged+=delegate{if(IsVisible&&!rendering)ShowTasks();else if(tasksWindow!=null)tasksWindow.Hide();};
+  SizeChanged+=delegate{AlignTasks();};LocationChanged+=delegate{AlignTasks();};IsVisibleChanged+=delegate{if(IsVisible&&!rendering)ShowTasks();else {StopTasksSlide();if(tasksWindow!=null)tasksWindow.Hide();}UpdateTasksReveal();};
  }
- internal void ShowTasks(){PrepareTasksWindow(true);}
+ internal void ShowTasks(){if(prefs.TasksCollapsed&&!coldPreparing){UpdateTasksReveal();return;}PrepareTasksWindow(true);}
  void PrepareTasksWindow(bool show){
   if(tasksWindow==null){
    var w=new Window{Title="待办",Owner=this,Width=CalendarMath.Clip(prefs.TasksWidth,240,520),Height=Height,MinWidth=240,MaxWidth=520,MinHeight=MinHeight,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.CanResize,ShowInTaskbar=false,ShowActivated=true,WindowStartupLocation=WindowStartupLocation.Manual,Background=Brushes.Transparent,FontFamily=FontFamily,FontSize=FontSize,Resources=Resources};tasksWindow=w;
 #if VISUAL_QA
    w.Owner=null;w.ShowInTaskbar=true;
 #endif
-   WindowChrome.SetWindowChrome(w,new WindowChrome{CaptionHeight=0,ResizeBorderThickness=new Thickness(prefs.Locked?0:5, prefs.Locked?0:5,0,prefs.Locked?0:5),GlassFrameThickness=new Thickness(-1),UseAeroCaptionButtons=false});
+   WindowChrome.SetWindowChrome(w,new WindowChrome{CaptionHeight=0,ResizeBorderThickness=new Thickness(prefs.Locked?0:5, prefs.Locked?0:5,0,prefs.Locked?0:5),GlassFrameThickness=new Thickness(0),UseAeroCaptionButtons=false});
    w.SourceInitialized+=delegate{Native.WidgetStyle(new WindowInteropHelper(w).Handle);AttachMaterialHook(w);ApplyDialogMaterial(w);};
    w.SizeChanged+=delegate(object sender,SizeChangedEventArgs e){if(linkingTasks||coldPreparing||!w.IsLoaded)return;linkingTasks=true;try{if(e.HeightChanged)Height=Math.Max(MinHeight,w.ActualHeight);Top=w.Top;prefs.TasksWidth=w.Width;}finally{linkingTasks=false;}AlignTasks();QueuePreferencesSave();};
    w.LocationChanged+=delegate{if(linkingTasks||coldPreparing||!w.IsLoaded)return;linkingTasks=true;try{Top=w.Top;}finally{linkingTasks=false;}Dispatcher.BeginInvoke(new Action(AlignTasks),DispatcherPriority.Background);};
@@ -34,14 +34,15 @@ public partial class CalendarWindow {
   }
   if(!show){new WindowInteropHelper(tasksWindow).EnsureHandle();var size=new Size(tasksWindow.Width,tasksWindow.Height);tasksRoot.Measure(size);tasksRoot.Arrange(new Rect(size));tasksRoot.UpdateLayout();ApplyDialogMaterial(tasksWindow);return;}AlignTasks();linkingTasks=true;try{if(!tasksWindow.IsVisible){bool rebuild=historyTasksOpen;historyTasksOpen=false;if(rebuild)RenderTasks();tasksWindow.ShowActivated=false;tasksWindow.Show();}tasksWindow.UpdateLayout();}finally{linkingTasks=false;}AlignTasks();ApplyDialogMaterial(tasksWindow);
  }
- void AlignTasks(){if(tasksWindow==null||linkingTasks)return;linkingTasks=true;try{tasksWindow.MinHeight=MinHeight;tasksWindow.Height=Math.Max(MinHeight,Height);tasksWindow.Top=Top;tasksWindow.Left=Left-tasksWindow.Width-10;var c=WindowChrome.GetWindowChrome(tasksWindow);if(c!=null)c.ResizeBorderThickness=new Thickness(prefs.Locked?0:5,prefs.Locked?0:5,0,prefs.Locked?0:5);}finally{linkingTasks=false;}}
+ void AlignTasks(){if(tasksWindow==null||linkingTasks||tasksSliding)return;linkingTasks=true;try{tasksWindow.MinHeight=MinHeight;tasksWindow.Height=Math.Max(MinHeight,Height);tasksWindow.Top=Top;tasksWindow.Left=Left-tasksWindow.Width-10;var c=WindowChrome.GetWindowChrome(tasksWindow);if(c!=null)c.ResizeBorderThickness=new Thickness(prefs.Locked?0:5,prefs.Locked?0:5,0,prefs.Locked?0:5);}finally{linkingTasks=false;}UpdateTasksReveal();}
  void ClearTasks(){todos=new TodoCache();tasksError="";prefs.TaskListId="";store.Delete("tasks.bin");RenderTasks();}
  async Task SyncTasksAsync(System.Threading.CancellationToken ct){if(!google.CanTasks)return;try{var fresh=await google.ReadTasksAsync(ct);ct.ThrowIfCancellationRequested();todos=fresh;store.Write("tasks.bin",todos,true);tasksError="";}catch(OperationCanceledException){throw;}catch(LoginRequiredException){throw;}catch(Exception ex){tasksError=Friendly(ex);}RenderTasks();}
  void RenderTasks(){
-  if(popupRise.Running){deferredRiseTasks=true;return;}if(tasksWindow==null)return;tasksWindow.Resources=Resources;tasksRoot=new Grid();tasksRoot.RowDefinitions.Add(new RowDefinition{Height=new GridLength(42)});tasksRoot.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});tasksRoot.RowDefinitions.Add(new RowDefinition());
+  if(tasksSliding){deferredCollapseTasks=true;return;}if(popupRise.Running){deferredRiseTasks=true;return;}if(tasksWindow==null)return;tasksWindow.Resources=Resources;tasksRoot=new Grid();tasksRoot.RowDefinitions.Add(new RowDefinition{Height=new GridLength(42)});tasksRoot.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});tasksRoot.RowDefinitions.Add(new RowDefinition());tasksRoot.RowDefinitions.Add(new RowDefinition{Height=new GridLength(34)});
   var caption=new Grid{Margin=new Thickness(14,0,8,0)};caption.ColumnDefinitions.Add(new ColumnDefinition());caption.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});var label=Text("待办",12,muted);label.Background=Brushes.Transparent;label.MouseLeftButtonDown+=delegate{if(!prefs.Locked)try{DragMove();}catch(InvalidOperationException){}};caption.Children.Add(label);var plus=Icon("\uE710","添加待办",()=>EditTask(null));taskAddButton=plus;plus.IsEnabled=taskEditor==null&&!taskMutation&&(demo||(google!=null&&google.Connected&&google.CanTasks&&todos.Lists.Count>0));Grid.SetColumn(plus,1);caption.Children.Add(plus);tasksRoot.Children.Add(caption);
   var header=new StackPanel{Margin=new Thickness(20,15,20,12)};Grid.SetRow(header,1);tasksRoot.Children.Add(header);
   var body=new StackPanel{Margin=new Thickness(20,0,20,24)};var scroll=new ScrollViewer{Content=body,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};Grid.SetRow(scroll,2);tasksRoot.Children.Add(scroll);
+  var collapse=Icon("\uE76C","收起待办",()=>SetTasksCollapsed(true));collapse.Name="CollapseTasks";collapse.HorizontalAlignment=HorizontalAlignment.Right;collapse.Margin=new Thickness(0,0,12,4);collapse.FontSize=12;Grid.SetRow(collapse,3);tasksRoot.Children.Add(collapse);
   if(!demo&&(google==null||!google.Connected)){header.Children.Add(Text("我的任务",24,foreground));body.Children.Add(Wrap("登录 Google 后查看待办。",13,muted));body.Children.Add(SettingsGoogleLoginButton(BeginLogin));}
   else if(!demo&&!google.CanTasks){header.Children.Add(Text("我的任务",24,foreground));body.Children.Add(Wrap("连接 Google Tasks 后，在这里添加和完成待办。",13,muted));body.Children.Add(SettingsButton("连接 Google Tasks","授权 Google Tasks",BeginLogin));}
   else {

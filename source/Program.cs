@@ -233,11 +233,8 @@ public static partial class SelfTests {
      Check(settingsLogin.Visibility==Visibility.Collapsed&&!Descendants(settings).OfType<System.Windows.Controls.Button>().Any(b=>Convert.ToString(b.Content)=="重新登录 Google"),"登录成功后不显示登录或重新登录按钮");
      var checks=Descendants(settings).OfType<System.Windows.Controls.CheckBox>().ToList();
      Check(checks.All(cb=>VisualNodes(cb).OfType<System.Windows.Controls.Border>().Any(b=>b.CornerRadius.TopLeft==4)),"设置勾选框使用统一圆角模板");
-     var lockCheck=checks.Single(cb=>Convert.ToString(cb.Content)=="锁定位置与尺寸");lockCheck.IsChecked=true;Pump(window);
-     Check(Convert.ToString(lockIcon.Content)=="\uE72E"&&Native.BackdropType(hwnd)==backdrop,"设置锁定开关同步快捷图标且不影响毛玻璃");lockCheck.IsChecked=false;Pump(window);
-     var combo=Descendants(settings).OfType<System.Windows.Controls.ComboBox>().Single();combo.IsDropDownOpen=true;Pump(window);
-     var popup=(System.Windows.Controls.Primitives.Popup)combo.Template.FindName("PART_Popup",combo);
-     Check(popup.IsOpen&&((System.Windows.Controls.Border)popup.Child).CornerRadius.TopLeft==6&&((System.Windows.Media.SolidColorBrush)((System.Windows.Controls.Border)popup.Child).Background).Color!=System.Windows.Media.Colors.White,"下拉菜单为统一深色圆角面板");combo.IsDropDownOpen=false;
+     Check(!checks.Any(cb=>Convert.ToString(cb.Content)=="锁定位置与尺寸")&&!Descendants(settings).OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text.Contains("点击托盘图标展开")),"设置移除窗口操作提示与重复锁定勾选项");
+     Check(!Descendants(settings).OfType<System.Windows.Controls.ComboBox>().Any()&&!Descendants(settings).OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text=="主题"),"设置不再提供主题选择，固定默认深色");Check(!Descendants(settings).OfType<System.Windows.Controls.Button>().Any(b=>Convert.ToString(b.Content)=="登录帮助"),"设置移除登录帮助");
      var slider=Descendants(settings).OfType<System.Windows.Controls.Slider>().Single();
      Check(VisualNodes(slider).OfType<System.Windows.Shapes.Ellipse>().Any(),"设置滑块使用圆形滑块和细轨道");
      Check(Descendants(settings).OfType<System.Windows.Controls.Button>().Where(b=>Convert.ToString(b.Content)=="完成"||Convert.ToString(b.Content)=="断开账号").All(b=>b.BorderThickness==new Thickness(1)&&((System.Windows.Media.SolidColorBrush)b.BorderBrush).Color.A>0),"完成与断开账号按钮具有可见细线边框");
@@ -260,7 +257,7 @@ public static partial class SelfTests {
    }),DispatcherPriority.ApplicationIdle);
    typeof(CalendarWindow).GetMethod("OpenSettings",flags).Invoke(window,null);if(error!=null)throw error;
    Check(ReferenceEquals(window.Content,surface),"关闭设置不重建主页外框");
-   typeof(CalendarWindow).GetMethod("Build",flags).Invoke(window,null);typeof(CalendarWindow).GetMethod("Render",flags,null,Type.EmptyTypes,null).Invoke(window,null);Pump(window);CheckWindowCorners(window,(System.Windows.Controls.Border)window.Content,"主页重建后");Check(Native.BackdropType(hwnd)==backdrop,"主页重建后仍保持原有毛玻璃材质");MotionChecks(window);PreparedViewChecks(window);YearChecks(window);FocusFeedbackChecks(window);TasksWidgetChecks(window);
+   typeof(CalendarWindow).GetMethod("Build",flags).Invoke(window,null);typeof(CalendarWindow).GetMethod("Render",flags,null,Type.EmptyTypes,null).Invoke(window,null);Pump(window);CheckWindowCorners(window,(System.Windows.Controls.Border)window.Content,"主页重建后");Check(Native.BackdropType(hwnd)==backdrop,"主页重建后仍保持原有毛玻璃材质");MotionChecks(window);PreparedViewChecks(window);YearChecks(window);FocusFeedbackChecks(window);TooltipChecks(window);TasksWidgetChecks(window);
   }finally{typeof(CalendarWindow).GetField("exiting",flags).SetValue(window,true);window.Close();}
  }
 }
