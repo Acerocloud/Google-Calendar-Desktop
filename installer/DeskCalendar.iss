@@ -1,4 +1,4 @@
-#define AppVersion "1.0.81"
+#define AppVersion "1.0.83"
 #ifndef PayloadDir
   #define PayloadDir "..\dist\app"
 #endif

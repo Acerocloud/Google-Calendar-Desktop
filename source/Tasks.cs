@@ -28,13 +28,15 @@ public partial class GoogleService {
   if(!CanTasks)throw new Exception("请先授权 Google Tasks。");string session=accountSession;
   for(int attempt=0;attempt<2;attempt++)using(var request=new HttpRequestMessage(method,TasksRoot+path)){
    request.Headers.Authorization=new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",await Access(ct));
+   if(method==HttpMethod.Get)request.Headers.CacheControl=new System.Net.Http.Headers.CacheControlHeaderValue{NoCache=true};
    if(!string.IsNullOrEmpty(etag))request.Headers.TryAddWithoutValidation("If-Match",etag);
    if(payload!=null)request.Content=new StringContent(Store.Json.Serialize(payload),Encoding.UTF8,"application/json");
    using(var response=await http.SendAsync(request,ct)){
     var body=await response.Content.ReadAsStringAsync();if(session!=accountSession)throw new OperationCanceledException();
     if(response.StatusCode==HttpStatusCode.Unauthorized&&attempt==0){token.Expiry=0;continue;}
     if(response.StatusCode==HttpStatusCode.Unauthorized)throw new LoginRequiredException();
-    if(response.StatusCode==HttpStatusCode.PreconditionFailed)throw new Exception("此待办已在其他设备修改，请刷新后重试。");
+    if(method==HttpMethod.Get&&(response.StatusCode==HttpStatusCode.NotFound||response.StatusCode==HttpStatusCode.Gone))throw new TaskMissingException();
+    if(response.StatusCode==HttpStatusCode.PreconditionFailed)throw new VersionMismatchException("此待办已在其他设备修改，请刷新后重试。");
     if(method==HttpMethod.Delete&&(response.StatusCode==HttpStatusCode.NotFound||response.StatusCode==HttpStatusCode.Gone))return new Dictionary<string,object>();
     if((int)response.StatusCode==429)throw new RetryException(TimeSpan.FromMinutes(5));
     if(response.StatusCode==HttpStatusCode.Forbidden)throw new Exception("无法访问待办，请确认 Google Cloud 已启用 Tasks API，且账号已授予 Tasks 权限。");
@@ -50,7 +52,5 @@ public partial class GoogleService {
   foreach(var list in result.Lists){page="";do{var d=await TaskRequest("lists/"+Uri.EscapeDataString(list.Id)+"/tasks?maxResults=100&showCompleted=true&showHidden=true&showDeleted=false"+page,HttpMethod.Get,null,null,ct);foreach(var x in Store.Items(d))if(Store.Text(x,"deleted")!="True"&&Store.Text(x,"deleted")!="true")result.Items.Add(TodoItem.Parse(x,list.Id));string next=Store.Text(d,"nextPageToken");page=next==""?"":"&pageToken="+Uri.EscapeDataString(next);}while(page!="");}
   return result;
  }
- public async Task<TodoItem> SaveTaskAsync(string list,TodoItem original,Dictionary<string,object> fields,CancellationToken ct){var d=await TaskRequest("lists/"+Uri.EscapeDataString(list)+"/tasks"+(original==null?"":"/"+Uri.EscapeDataString(original.Id)),original==null?HttpMethod.Post:new HttpMethod("PATCH"),fields,original==null?null:original.Etag,ct);return TodoItem.Parse(d,list);}
- public async Task DeleteTaskAsync(TodoItem item,CancellationToken ct){await TaskRequest("lists/"+Uri.EscapeDataString(item.ListId)+"/tasks/"+Uri.EscapeDataString(item.Id),HttpMethod.Delete,null,item.Etag,ct);}
 }
 }

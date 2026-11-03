@@ -113,7 +113,7 @@ public static partial class SelfTests {
    google.RevokeAsync(refresh).GetAwaiter().GetResult();Check(delayed.Revoked&&!google.Connected,"撤销授权仅调用撤销接口并保持断开状态");
   }
   UpdateTests.Run(Check,Path.Combine(directory,"updates"));
-  TasksChecks(Path.Combine(directory,"tasks"));CreateChecks(Path.Combine(directory,"create"));EditChecks(Path.Combine(directory,"edit"));
+  TasksChecks(Path.Combine(directory,"tasks"));ConflictRecoveryChecks(Path.Combine(directory,"conflict-recovery"));CreateChecks(Path.Combine(directory,"create"));EditChecks(Path.Combine(directory,"edit"));
   WidgetChecks(Path.Combine(directory,"widget"));
   File.WriteAllText(Path.Combine(directory,"self-test.txt"),count+" checks passed\r\n"+DateTimeOffset.Now.ToString("o"));
  }

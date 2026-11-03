@@ -1,12 +1,18 @@
 using System;
+using System.Windows;
 using System.Windows.Interop;
 using Forms=System.Windows.Forms;
 
 namespace DeskCalendar {
 public partial class CalendarWindow {
- bool positioningHome;
+ bool positioningHome,homeSizing;
+ void HomeSizingMessage(Window window,int message){
+  if(window!=this&&window!=tasksWindow)return;
+  if(message==0x231)homeSizing=true;
+  if(message==0x232){homeSizing=false;Dispatcher.BeginInvoke(new Action(AnchorHome),System.Windows.Threading.DispatcherPriority.Loaded);}
+ }
  void AnchorHome(){
-  if(positioningHome||linkingTasks||coldPreparing||rendering||!IsVisible||popupRise.Running)return;
+  if(positioningHome||homeSizing||linkingTasks||coldPreparing||rendering||!IsVisible||popupRise.Running)return;
   positioningHome=true;
   try{
    var hwnd=new WindowInteropHelper(this).Handle;var screen=Forms.Screen.FromHandle(hwnd);var work=screen.WorkingArea;

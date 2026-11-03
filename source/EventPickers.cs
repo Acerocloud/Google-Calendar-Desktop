@@ -55,12 +55,13 @@ public sealed class EventDatePicker:Button {
 }
 public sealed class EventTimePicker:Grid {
  public event EventHandler SelectedTimeChanged;
- public void SetTime(DateTime value){Hours.SelectedIndex=value.Hour;Minutes.SelectedIndex=value.Minute;}
+ bool settingTime;
+ public void SetTime(DateTime value){settingTime=true;try{Hours.SelectedIndex=value.Hour;Minutes.Items.Clear();for(int minute=0;minute<60;minute+=15)Minutes.Items.Add(minute.ToString("00"));string exact=value.Minute.ToString("00");if(!Minutes.Items.Contains(exact)){int index=0;while(index<Minutes.Items.Count&&int.Parse((string)Minutes.Items[index])<value.Minute)index++;Minutes.Items.Insert(index,exact);}Minutes.SelectedItem=exact;}finally{settingTime=false;}if(SelectedTimeChanged!=null)SelectedTimeChanged(this,EventArgs.Empty);}
  public ComboBox Hours {get;private set;}public ComboBox Minutes {get;private set;}
- public TimeSpan SelectedTime {get{return new TimeSpan(Math.Max(0,Hours.SelectedIndex),Math.Max(0,Minutes.SelectedIndex),0);}}
+ public TimeSpan SelectedTime {get{return new TimeSpan(Math.Max(0,Hours.SelectedIndex),Minutes.SelectedItem==null?0:int.Parse((string)Minutes.SelectedItem),0);}}
  public EventTimePicker(DateTime value,ResourceDictionary resources,Brush foreground){
   Resources=resources;ColumnDefinitions.Add(new ColumnDefinition());ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(10)});ColumnDefinitions.Add(new ColumnDefinition());MinHeight=36;
-  Hours=new ComboBox{MinHeight=36,ToolTip="小时 · 24 小时制"};Minutes=new ComboBox{MinHeight=36,ToolTip="分钟"};for(int i=0;i<24;i++)Hours.Items.Add(i.ToString("00"));for(int i=0;i<60;i++)Minutes.Items.Add(i.ToString("00"));Hours.SelectedIndex=value.Hour;Minutes.SelectedIndex=value.Minute;Hours.SelectionChanged+=delegate{if(SelectedTimeChanged!=null)SelectedTimeChanged(this,EventArgs.Empty);};Minutes.SelectionChanged+=delegate{if(SelectedTimeChanged!=null)SelectedTimeChanged(this,EventArgs.Empty);};Children.Add(Hours);var colon=new TextBlock{Text=":",Foreground=foreground,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};Grid.SetColumn(colon,1);Children.Add(colon);Grid.SetColumn(Minutes,2);Children.Add(Minutes);System.Windows.Automation.AutomationProperties.SetName(Hours,"选择小时");System.Windows.Automation.AutomationProperties.SetName(Minutes,"选择分钟");
+  Hours=new ComboBox{MinHeight=36,ToolTip="小时 · 24 小时制"};Minutes=new ComboBox{MinHeight=36,ToolTip="分钟"};for(int i=0;i<24;i++)Hours.Items.Add(i.ToString("00"));SetTime(value);Hours.SelectionChanged+=delegate{if(!settingTime&&SelectedTimeChanged!=null)SelectedTimeChanged(this,EventArgs.Empty);};Minutes.SelectionChanged+=delegate{if(!settingTime&&SelectedTimeChanged!=null)SelectedTimeChanged(this,EventArgs.Empty);};Children.Add(Hours);var colon=new TextBlock{Text=":",Foreground=foreground,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};Grid.SetColumn(colon,1);Children.Add(colon);Grid.SetColumn(Minutes,2);Children.Add(Minutes);System.Windows.Automation.AutomationProperties.SetName(Hours,"选择小时");System.Windows.Automation.AutomationProperties.SetName(Minutes,"选择分钟");
  }
 }
 }

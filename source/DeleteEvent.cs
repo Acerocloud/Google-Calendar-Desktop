@@ -12,14 +12,14 @@ public partial class GoogleService {
  public async Task DeleteEventAsync(CalendarInfo calendar,CalendarEvent ev,CancellationToken ct){
   if(!CanWrite)throw new Exception("请重新登录 Google 并授予日程读写权限。");
   if(calendar==null||!calendar.Writable||ev==null||ev.CalendarId!=calendar.Id||string.IsNullOrEmpty(ev.Id))throw new Exception("无权删除该日历的日程。");
-  string session=accountSession;string url="https://www.googleapis.com/calendar/v3/calendars/"+Uri.EscapeDataString(calendar.Id)+"/events/"+Uri.EscapeDataString(ev.Id)+"?sendUpdates=none";
+  string session=accountSession;if(string.IsNullOrEmpty(ev.Etag)){var latest=await FreshEvent(calendar,ev,ct);if(session!=accountSession)throw new OperationCanceledException();throw new ResourceConflictException(latest);}string url="https://www.googleapis.com/calendar/v3/calendars/"+Uri.EscapeDataString(calendar.Id)+"/events/"+Uri.EscapeDataString(ev.Id)+"?sendUpdates=none";
   for(int attempt=0;attempt<2;attempt++)using(var request=new HttpRequestMessage(HttpMethod.Delete,url)){
    request.Headers.Authorization=new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",await Access(ct));if(!string.IsNullOrEmpty(ev.Etag))request.Headers.TryAddWithoutValidation("If-Match",ev.Etag);
    using(var response=await http.SendAsync(request,ct)){
     if(session!=accountSession)throw new OperationCanceledException();
     if(response.StatusCode==HttpStatusCode.Unauthorized&&attempt==0){token.Expiry=0;continue;}if(response.StatusCode==HttpStatusCode.Unauthorized)throw new LoginRequiredException();
     if(response.IsSuccessStatusCode||response.StatusCode==HttpStatusCode.Gone){responses.Clear();return;}
-    if(response.StatusCode==HttpStatusCode.PreconditionFailed)throw new Exception("这条日程已有变更，请刷新后再删除。");
+    if(response.StatusCode==HttpStatusCode.PreconditionFailed){responses.Clear();var latest=await FreshEvent(calendar,ev,ct);if(session!=accountSession)throw new OperationCanceledException();throw new ResourceConflictException(latest);}
     if(response.StatusCode==HttpStatusCode.Forbidden)throw new Exception("无权删除这条日程，请检查 Google 授权和日历权限。");
     if(response.StatusCode==HttpStatusCode.NotFound)throw new Exception("找不到这条日程或无法访问，请刷新日历。");
     throw new Exception("删除未确认（"+(int)response.StatusCode+"），请稍后重试。");
@@ -43,7 +43,7 @@ public partial class CalendarWindow {
   yes.Click+=async delegate{
    if(deleting||busy||demo)return;deleting=true;busy=true;poll.Stop();yes.IsEnabled=no.IsEnabled=false;status.Text="正在删除…";
    try{await google.DeleteEventAsync(calendar,ev,lifetime.Token);cache.Events.RemoveAll(e=>e.CalendarId==ev.CalendarId&&e.Id==ev.Id);store.Write("calendar.bin",cache,true);deleted=true;deleting=false;w.Close();}
-   catch(Exception ex){if(ex is LoginRequiredException)authExpired=true;status.Text=Friendly(ex);}
+   catch(Exception ex){var conflict=ex as ResourceConflictException;if(conflict!=null&&conflict.EventItem!=null){ev=conflict.EventItem;cache.Events.RemoveAll(e=>e.CalendarId==ev.CalendarId&&e.Id==ev.Id);cache.Events.Add(ev);store.Write("calendar.bin",cache,true);((TextBlock)panel.Children[0]).Text="删除“"+ev.Title+"”？";}if(ex is LoginRequiredException)authExpired=true;status.Text=Friendly(ex);}
    finally{deleting=false;busy=false;yes.IsEnabled=no.IsEnabled=true;Render();Schedule();}
   };
   SetDialogContent(w,new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});w.ShowDialog();if(deleted){completed();if(!rendering)QueueSync();}

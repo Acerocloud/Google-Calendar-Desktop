@@ -102,14 +102,14 @@ public partial class GoogleService:IDisposable {
   if(!string.IsNullOrEmpty(client.ClientSecret))d["client_secret"]=client.ClientSecret;
   var result=await TokenRequest(d,ct);if(session!=accountSession)throw new OperationCanceledException();ApplyToken(result);store.Write("tokens.bin",token,true);return token.Access;
  }
- async Task<Dictionary<string,object>> Get(string url,CancellationToken ct){
+ async Task<Dictionary<string,object>> Get(string url,CancellationToken ct,bool fresh=false){
   for(int attempt=0;attempt<2;attempt++){
    string access=await Access(ct);
    using(var request=new HttpRequestMessage(HttpMethod.Get,url)){
     request.Headers.Authorization=new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",access);
-    SavedResponse saved;responses.TryGetValue(url,out saved);if(saved!=null)request.Headers.TryAddWithoutValidation("If-None-Match",saved.Etag);
+    SavedResponse saved;responses.TryGetValue(url,out saved);if(saved!=null&&!fresh)request.Headers.TryAddWithoutValidation("If-None-Match",saved.Etag);if(fresh)request.Headers.CacheControl=new System.Net.Http.Headers.CacheControlHeaderValue{NoCache=true};
     using(var response=await http.SendAsync(request,ct)){
-     if(response.StatusCode==HttpStatusCode.NotModified&&saved!=null)return saved.Data;
+     if(response.StatusCode==HttpStatusCode.NotModified&&saved!=null&&!fresh)return saved.Data;
      string text=await response.Content.ReadAsStringAsync();
      if(response.StatusCode==HttpStatusCode.Unauthorized&&attempt==0){token.Expiry=0;continue;}
      if(response.StatusCode==HttpStatusCode.Unauthorized)throw new LoginRequiredException();
@@ -117,7 +117,7 @@ public partial class GoogleService:IDisposable {
       TimeSpan delay=TimeSpan.FromMinutes(5);if(response.Headers.RetryAfter!=null){if(response.Headers.RetryAfter.Delta.HasValue)delay=response.Headers.RetryAfter.Delta.Value;else if(response.Headers.RetryAfter.Date.HasValue)delay=response.Headers.RetryAfter.Date.Value-DateTimeOffset.UtcNow;}throw new RetryException(delay<TimeSpan.FromSeconds(30)?TimeSpan.FromSeconds(30):delay);
      }
      if(!response.IsSuccessStatusCode)throw new Exception("读取日历失败（"+(int)response.StatusCode+"）。请检查 Calendar API 是否启用及账号权限。 ");
-     var parsed=Store.Object(text);if(response.Headers.ETag!=null&&Store.Text(parsed,"nextPageToken")==""&&!url.Contains("pageToken=")){if(responses.Count>=16)responses.Clear();responses[url]=new SavedResponse{Etag=response.Headers.ETag.ToString(),Data=parsed};}return parsed;
+     var parsed=Store.Object(text);if(!fresh&&response.Headers.ETag!=null&&Store.Text(parsed,"nextPageToken")==""&&!url.Contains("pageToken=")){if(responses.Count>=16)responses.Clear();responses[url]=new SavedResponse{Etag=response.Headers.ETag.ToString(),Data=parsed};}return parsed;
     }
    }
   }

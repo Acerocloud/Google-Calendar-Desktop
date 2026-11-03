@@ -19,7 +19,13 @@ public static partial class SelfTests {
    window.ShowCalendar();PumpMotion(280);Pump(window);
    var screen=System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(window).Handle);var area=screen.WorkingArea;double scale=Native.MonitorScale(new System.Drawing.Point(area.Left+area.Width/2,area.Top+area.Height/2));
    Action verify=()=>{Check(tasks.IsVisible&&Math.Abs((window.Left+window.Width)*scale-area.Right+(int)(8*scale))<=2&&Math.Abs((window.Top+window.Height)*scale-area.Bottom+(int)(8*scale))<=2,"真实窗口显示及调整尺寸后保持两框右下角锚定");};
-   verify();window.Width-=20;window.Height-=20;PumpMotion(120);verify();tasks.Width+=10;PumpMotion(120);verify();
+   verify();
+   var handle=new WindowInteropHelper(window).Handle;double previousWidth=window.Width,taskWidth=tasks.Width;
+   SendFocusMessage(handle,0x231,IntPtr.Zero,IntPtr.Zero);
+   Native.Position(handle,new System.Drawing.Rectangle((int)Math.Round(window.Left*scale)+40,(int)Math.Round(window.Top*scale),(int)Math.Round(window.Width*scale)-40,(int)Math.Round(window.Height*scale)));
+   Pump(window);SendFocusMessage(handle,0x232,IntPtr.Zero,IntPtr.Zero);PumpMotion(120);
+   Check(window.Width<previousWidth-20&&Math.Abs(tasks.Width-taskWidth)<1,"原生缩放消息期间可独立改变右框宽度，不被右下角重定位覆盖，也不改变待办宽度");verify();
+   window.Width-=20;window.Height-=20;PumpMotion(120);verify();tasks.Width+=10;PumpMotion(120);verify();
    window.Left+=40;Pump(window);verify();
   }finally{field.SetValue(window,true);}
  }

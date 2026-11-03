@@ -61,7 +61,21 @@ public partial class CalendarWindow {
     var selected=calendar.SelectedItem as ComboBoxItem;if(selected==null){message.Text="请选择日历。";return;}var cal=(CalendarInfo)selected.Tag;
     working=true;busy=true;poll.Stop();state();message.Text="正在保存…";
     try{var ev=editing?await google.EditEventAsync(cal,original,draft,reminder.SelectedIndex==0,ct.Token):await google.CreateEventAsync(cal,draft,ct.Token);savedEvent=ev;cache.Events.RemoveAll(e=>e.CalendarId==ev.CalendarId&&e.Id==ev.Id);cache.Events.Add(ev);if(!prefs.Selected.Contains(cal.Id))prefs.Selected.Add(cal.Id);prefs.SelectionSaved=true;Save();store.Write("calendar.bin",cache,true);anchor=draft.Start.Date;working=false;w.Close();}
-    catch(Exception ex){confirmed=!editing;if(ex is LoginRequiredException){authExpired=true;ready=false;confirmed=false;}message.Text=Friendly(ex)+(editing?"":"\n再次保存会确认同一条日程；取消后请先检查 Google 日历。");}
+    catch(Exception ex){
+     var conflict=ex as ResourceConflictException;
+     if(editing&&conflict!=null&&conflict.EventItem!=null){
+      var latest=conflict.EventItem;var changed=GoogleService.EditPayload(original,draft,reminder.SelectedIndex==0);
+      if(!changed.ContainsKey("summary"))title.Text=latest.Title;
+      if(!changed.ContainsKey("location"))location.Text=latest.Location??"";
+      if(!changed.ContainsKey("description"))description.Text=latest.Description??"";
+      DateTime desiredStart=changed.ContainsKey("start")?draft.Start:latest.StartLocal;
+      DateTime desiredEnd=changed.ContainsKey("end")?draft.End:latest.AllDay?latest.EndLocal.AddDays(-1):latest.EndLocal;
+      if(!changed.ContainsKey("start")&&!changed.ContainsKey("end"))allDay.IsChecked=latest.AllDay;
+      startDate.SetDate(desiredStart);startTime.SetTime(desiredStart);endDate.SetDate(desiredEnd);endTime.SetTime(desiredEnd);
+      original=latest;cache.Events.RemoveAll(e=>e.CalendarId==latest.CalendarId&&e.Id==latest.Id);cache.Events.Add(latest);store.Write("calendar.bin",cache,true);
+     }
+     confirmed=!editing;if(ex is LoginRequiredException){authExpired=true;ready=false;confirmed=false;}message.Text=Friendly(ex)+(editing?"":"\n再次保存会确认同一条日程；取消后请先检查 Google 日历。");
+    }
     finally{working=false;busy=false;state();Render();Schedule();if(!w.IsVisible&&!rendering)QueueSync();}
    };
    w.Closing+=delegate(object sender,System.ComponentModel.CancelEventArgs e){if(working)e.Cancel=true;};state();var layout=new DockPanel();DockPanel.SetDock(buttons,Dock.Bottom);layout.Children.Add(buttons);layout.Children.Add(new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});SetDialogContent(w,layout);eventEditorOpen=true;UpdateCalendarActions();try{w.ShowDialog();}finally{eventEditorOpen=false;UpdateCalendarActions();}
