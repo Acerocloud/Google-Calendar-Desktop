@@ -17,6 +17,21 @@ public static partial class SelfTests {
   Exception failure=null;owner.Dispatcher.BeginInvoke(new Action(()=>{Window confirm=null;try{confirm=owner.OwnedWindows.Cast<Window>().Single(w=>w.Title=="删除日程");Check(confirm.IsVisible&&confirm.Owner==owner&&Descendants(confirm).OfType<Button>().Any(b=>b.Name=="ConfirmDeleteEvent"),"垃圾箱点击后弹出所属窗口的删除确认小窗");Descendants(confirm).OfType<Button>().Single(b=>b.Name==(accept?"ConfirmDeleteEvent":"CancelDeleteEvent")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump(owner);}catch(Exception ex){failure=ex;}finally{if(confirm!=null&&confirm.IsVisible)confirm.Close();}}),DispatcherPriority.ApplicationIdle);trigger();if(failure!=null)throw failure;
  }
  static void CreateChecks(string directory){
+  var weekly=new EventDraft{Title="周五会议",Start=new DateTime(2026,11,13,15,0,0),End=new DateTime(2026,11,13,16,0,0),RepeatThrough=new DateTime(2026,12,11)};
+  var weeklyPayload=weekly.Payload();
+  var cutoff=new DateTimeOffset(new DateTime(2026,12,11,23,59,59)).UtcDateTime.ToString("yyyyMMdd'T'HHmmss'Z'",System.Globalization.CultureInfo.InvariantCulture);
+  Check(((string[])weeklyPayload["recurrence"]).Single()=="RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=FR;UNTIL="+cutoff&&Store.Text(Store.Map(weeklyPayload,"start"),"timeZone")!="","定时周五日程使用本地时区且重复截止日期包含当天");
+  weekly.AllDay=true;
+  Check(((string[])weekly.Payload()["recurrence"]).Single()=="RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=FR;UNTIL=20261211","全天重复使用日期形式的截止值");
+  weekly.RepeatInterval=2;
+  var expectedRules=new[]{"DAILY;INTERVAL=2","WEEKLY;INTERVAL=2;BYDAY=FR","MONTHLY;INTERVAL=2","MONTHLY;INTERVAL=6","YEARLY;INTERVAL=2"};
+  for(int i=0;i<expectedRules.Length;i++){
+   weekly.RepeatEvery=(RepeatUnit)i;
+   Check(((string[])weekly.Payload()["recurrence"]).Single()=="RRULE:FREQ="+expectedRules[i]+";UNTIL=20261211","重复单位与间隔正确写入 Google 日历规则");
+  }
+  weekly.RepeatThrough=weekly.Start.AddDays(-1);
+  bool invalidRepeat=false;try{weekly.Payload();}catch(Exception ex){invalidRepeat=ex.Message.Contains("周期结束日期");}
+  Check(invalidRepeat,"拒绝早于首次日程的重复截止日期");
   var draft=new EventDraft{Title=" 测试日程 ",Start=new DateTime(2026,10,25,23,0,0),End=new DateTime(2026,10,26,1,0,0),Location="地点",Description="备注"};
   var body=draft.Payload();Check(Store.Text(body,"summary")=="测试日程"&&Store.Text(Store.Map(body,"start"),"dateTime").Contains("T23:00:00"),"新增日程保留标题、跨天时间与本地偏移");
   draft.AllDay=true;draft.End=draft.Start.Date;body=draft.Payload();Check(Store.Text(Store.Map(body,"end"),"date")=="2026-10-26","单日全天事件结束日期按 Google 排他语义加一天");

@@ -239,10 +239,22 @@ public partial class CalendarWindow:Window {
  void OpenEvent(CalendarEvent ev){
   if(dayDetail!=null)dayDetail.Close();
   if(eventDetail!=null)eventDetail.Close();
-  var w=Dialog("日程详情",430,430);var panel=new StackPanel{Margin=new Thickness(22)};panel.Children.Add(Text(ev.CalendarName,12,muted));var title=Wrap(ev.Title,22,foreground);title.Margin=new Thickness(0,14,0,20);panel.Children.Add(title);
-  panel.Children.Add(Wrap(ev.AllDay?ev.StartLocal.ToString("yyyy年M月d日")+" – "+ev.EndLocal.AddDays(-1).ToString("M月d日")+" · 全天":ev.StartLocal.ToString("yyyy年M月d日 HH:mm")+" – "+ev.EndLocal.ToString("M月d日 HH:mm"),13,foreground));
-  panel.Children.Add(Wrap("时间按 Windows 本地时区显示",11,muted));if(!string.IsNullOrEmpty(ev.Location)){var location=Wrap(ev.Location,13,foreground);location.Margin=new Thickness(0,14,0,0);panel.Children.Add(location);}
-  if(!string.IsNullOrEmpty(ev.Description)){var description=Wrap(ev.Description,12,muted);description.Margin=new Thickness(0,18,0,18);panel.Children.Add(description);}
+  var w=Dialog("日程详情",430,430);var panel=new StackPanel{Margin=new Thickness(22)};panel.Children.Add(CopyableDetailText(ev.CalendarName,12,muted));var title=CopyableDetailText(ev.Title,22,foreground);title.Margin=new Thickness(0,14,0,20);
+  if(!string.IsNullOrEmpty(ev.RecurringId)){
+   var repeatIcon=new TextBlock{Text="\uE8EE",FontFamily=new FontFamily("Segoe MDL2 Assets"),FontSize=14,Foreground=muted};
+   var repeatBadge=new Border{Background=Brushes.Transparent,Padding=new Thickness(4,3,4,3),Margin=new Thickness(4,0,0,0),Child=repeatIcon,ToolTip="周期日程",VerticalAlignment=VerticalAlignment.Center};
+   AutomationProperties.SetName(repeatBadge,"周期日程");
+   ToolTipService.SetInitialShowDelay(repeatBadge,200);
+   var titleRow=new WrapPanel{Margin=title.Margin};
+   title.Margin=new Thickness(0);
+   titleRow.Children.Add(title);
+   titleRow.Children.Add(repeatBadge);
+   panel.Children.Add(titleRow);
+  }
+  else panel.Children.Add(title);
+  panel.Children.Add(CopyableDetailText(ev.AllDay?ev.StartLocal.ToString("yyyy年M月d日")+" – "+ev.EndLocal.AddDays(-1).ToString("M月d日")+" · 全天":ev.StartLocal.ToString("yyyy年M月d日 HH:mm")+" – "+ev.EndLocal.ToString("M月d日 HH:mm"),13,foreground));
+  panel.Children.Add(CopyableDetailText("时间按 Windows 本地时区显示",11,muted));if(!string.IsNullOrEmpty(ev.Location)){var location=LinkableDetailText(w,ev.Location,13);location.Margin=new Thickness(0,14,0,0);panel.Children.Add(location);}
+  if(!string.IsNullOrEmpty(ev.Description)){var description=LinkableDetailText(w,ev.Description,12);description.Margin=new Thickness(0,18,0,18);panel.Children.Add(description);}
   AddCaptionBrowser(w,ev.Link,"在浏览器中打开日程");AddDeleteAction(panel,w,ev);AddEditAction(w,ev);SetDialogContent(w,new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});eventDetail=w;
   CloseDetailOnFocusLoss(w);
   w.KeyDown+=delegate(object sender,System.Windows.Input.KeyEventArgs e){if(e.Key==System.Windows.Input.Key.Escape){e.Handled=true;w.Close();}};

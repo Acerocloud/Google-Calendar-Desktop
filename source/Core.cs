@@ -20,7 +20,7 @@ public class Preferences {
 }
 public class CalendarInfo { public string Id, Name, Color, AccessRole; public bool Primary; public bool Writable {get{return AccessRole=="owner"||AccessRole=="writer";}} }
 public class CalendarEvent {
- public string Etag,RecurringId; public string Id, CalendarId, CalendarName, Color, Title, Location, Description, Link;
+ public string Etag,RecurringId,StartZone,EndZone; public string Id, CalendarId, CalendarName, Color, Title, Location, Description, Link;
  public string Start, End;
  public bool AllDay;
  string parsedStart,parsedEnd;bool parsedAllDay,datesReady;TimeZoneInfo parsedZone;DateTime startLocal,endLocal;DateTimeOffset startOffset,endOffset;

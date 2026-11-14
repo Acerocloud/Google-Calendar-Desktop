@@ -14,6 +14,14 @@ class ResourceConflictException:Exception {
  public ResourceConflictException(CalendarEvent item):base("这条日程的同一内容已有变更，已自动更新日历。请核对后重试。"){EventItem=item;}
 }
 public partial class GoogleService {
+ public async Task<CalendarEvent> ReadSeriesAsync(CalendarInfo calendar,CalendarEvent occurrence,CancellationToken ct){
+  if(!CanWrite||calendar==null||!calendar.Writable||occurrence==null||calendar.Id!=occurrence.CalendarId||string.IsNullOrEmpty(occurrence.RecurringId))
+   throw new Exception("无法编辑此周期日程的整个系列。");
+  string session=accountSession;
+  var master=await FreshEvent(calendar,new CalendarEvent{Id=occurrence.RecurringId,Color=occurrence.Color},ct);
+  if(session!=accountSession)throw new OperationCanceledException();
+  return master;
+ }
  static Dictionary<string,object> TaskValues(TodoItem item){return new Dictionary<string,object>{{"title",item.Title??""},{"notes",item.Notes??""},{"due",item.Date.HasValue?item.Date.Value.ToString("yyyy-MM-dd"):""},{"status",item.Completed?"completed":"needsAction"}};}
  static string TaskValue(string key,object raw){string value=raw==null?"":Convert.ToString(raw);return key=="due"&&value.Length>=10?value.Substring(0,10):value;}
  static Dictionary<string,object> TaskChanges(TodoItem original,Dictionary<string,object> fields){var result=new Dictionary<string,object>();var before=TaskValues(original);foreach(var pair in fields){if(pair.Key=="completed")continue;object value;if(!before.TryGetValue(pair.Key,out value)||TaskValue(pair.Key,value)!=TaskValue(pair.Key,pair.Value))result[pair.Key]=pair.Value;}if(result.ContainsKey("status")&&fields.ContainsKey("completed"))result["completed"]=fields["completed"];return result;}
@@ -43,7 +51,7 @@ public partial class GoogleService {
  }
  static string EventDateValue(bool allDay,string value){DateTimeOffset time;if(allDay)return "date:"+value;return DateTimeOffset.TryParse(value,out time)?"time:"+time.UtcDateTime.Ticks:"time:"+value;}
  static string EventPatchValue(string key,object value){if(key!="start"&&key!="end")return value==null?"":Convert.ToString(value);var data=(Dictionary<string,object>)value;string date=Store.Text(data,"date");return EventDateValue(date!="",date!=""?date:Store.Text(data,"dateTime"));}
- async Task<CalendarEvent> FreshEvent(CalendarInfo cal,CalendarEvent original,CancellationToken ct){string url="https://www.googleapis.com/calendar/v3/calendars/"+Uri.EscapeDataString(cal.Id)+"/events/"+Uri.EscapeDataString(original.Id);var data=await Get(url,ct,true);if(Store.Text(data,"id")!=original.Id||Store.Map(data,"start")==null||Store.Map(data,"end")==null||string.IsNullOrEmpty(Store.Text(data,"etag")))throw new Exception("无法确认日程最新版本，请稍后重试。");var a=Store.Map(data,"start");var b=Store.Map(data,"end");bool all=Store.Text(a,"date")!="";return new CalendarEvent{Id=original.Id,Etag=Store.Text(data,"etag"),RecurringId=Store.Text(data,"recurringEventId"),CalendarId=cal.Id,CalendarName=cal.Name,Color=original.Color,Title=Store.Text(data,"summary"),Location=Store.Text(data,"location"),Description=Store.Text(data,"description"),Link=Store.Text(data,"htmlLink"),AllDay=all,Start=Store.Text(a,all?"date":"dateTime"),End=Store.Text(b,all?"date":"dateTime")};}
+ async Task<CalendarEvent> FreshEvent(CalendarInfo cal,CalendarEvent original,CancellationToken ct){string url="https://www.googleapis.com/calendar/v3/calendars/"+Uri.EscapeDataString(cal.Id)+"/events/"+Uri.EscapeDataString(original.Id);var data=await Get(url,ct,true);if(Store.Text(data,"id")!=original.Id||Store.Map(data,"start")==null||Store.Map(data,"end")==null||string.IsNullOrEmpty(Store.Text(data,"etag")))throw new Exception("无法确认日程最新版本，请稍后重试。");var a=Store.Map(data,"start");var b=Store.Map(data,"end");bool all=Store.Text(a,"date")!="";return new CalendarEvent{Id=original.Id,Etag=Store.Text(data,"etag"),RecurringId=Store.Text(data,"recurringEventId"),StartZone=Store.Text(a,"timeZone"),EndZone=Store.Text(b,"timeZone"),CalendarId=cal.Id,CalendarName=cal.Name,Color=original.Color,Title=Store.Text(data,"summary"),Location=Store.Text(data,"location"),Description=Store.Text(data,"description"),Link=Store.Text(data,"htmlLink"),AllDay=all,Start=Store.Text(a,all?"date":"dateTime"),End=Store.Text(b,all?"date":"dateTime")};}
  public async Task<CalendarEvent> EditEventAsync(CalendarInfo cal,CalendarEvent original,EventDraft draft,bool keepReminders,CancellationToken ct){
   if(!CanWrite||cal==null||!cal.Writable||original==null||original.CalendarId!=cal.Id||string.IsNullOrEmpty(original.Id))throw new Exception("无权编辑该日历的日程。");
   var patch=EditPayload(original,draft,keepReminders);if(patch.Count==0)return original;string session=accountSession;var current=original;

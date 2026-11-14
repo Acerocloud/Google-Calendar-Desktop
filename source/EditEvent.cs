@@ -18,7 +18,7 @@ public partial class GoogleService {
   bool sameKind=draft.AllDay==original.AllDay;
   if(sameKind&&(draft.AllDay?draft.Start.Date==original.StartLocal.Date:draft.Start==Minute(original.StartLocal)))body.Remove("start");
   if(sameKind&&(draft.AllDay?draft.End.Date.AddDays(1)==original.EndLocal.Date:draft.End==Minute(original.EndLocal)))body.Remove("end");
-  foreach(string key in new[]{"start","end"}){object raw;if(body.TryGetValue(key,out raw)){var date=(Dictionary<string,object>)raw;date[draft.AllDay?"dateTime":"date"]=null;if(draft.AllDay)date["timeZone"]=null;}}
+  foreach(string key in new[]{"start","end"}){object raw;if(body.TryGetValue(key,out raw)){var date=(Dictionary<string,object>)raw;date[draft.AllDay?"dateTime":"date"]=null;if(draft.AllDay)date["timeZone"]=null;else{string zone=key=="start"?original.StartZone:original.EndZone;if(!string.IsNullOrEmpty(zone))date["timeZone"]=zone;}}}
   return body;
  }
  async Task<CalendarEvent> WriteEventPatch(CalendarInfo cal,CalendarEvent original,Dictionary<string,object> patch,string etag,CancellationToken ct){
@@ -39,6 +39,35 @@ public partial class GoogleService {
  }
 }
 public partial class CalendarWindow {
+ async void OpenEditEvent(CalendarEvent original){
+  if(eventEditorOpen)return;
+  if(string.IsNullOrEmpty(original.RecurringId)){OpenEventEditor(original.StartLocal.Date,original);return;}
+  var owner=eventDetail;
+  var choice=Dialog("编辑周期日程",360,240);
+  if(owner!=null)choice.Owner=owner;
+  var panel=new StackPanel{Margin=new Thickness(22,8,22,14)};
+  bool series=false;
+  var single=SettingsButton("仅本次","编辑当前这一次日程",()=>{choice.DialogResult=true;});
+  single.Name="EditOccurrence";
+  panel.Children.Add(single);
+  var all=SettingsButton("整个周期日程","编辑此周期日程的过去和未来场次",()=>{series=true;choice.DialogResult=true;});
+  all.Name="EditSeries";
+  panel.Children.Add(all);
+  SetDialogContent(choice,panel);
+  if(choice.ShowDialog()!=true)return;
+  if(!series){OpenEventEditor(original.StartLocal.Date,original);return;}
+  var calendar=cache.Calendars.FirstOrDefault(c=>c.Id==original.CalendarId);
+  if(calendar==null||!calendar.Writable||google==null)return;
+  var service=google;
+  CalendarEvent master;
+  eventEditorOpen=true;UpdateCalendarActions();
+  try{master=await service.ReadSeriesAsync(calendar,original,lifetime.Token);}
+  catch(OperationCanceledException){return;}
+  catch(Exception ex){if(!exiting&&owner!=null&&owner.IsVisible)MessageBox.Show(owner,Friendly(ex),"无法读取周期日程");return;}
+  finally{eventEditorOpen=false;UpdateCalendarActions();}
+  if(exiting||service!=google||owner==null||!owner.IsVisible)return;
+  OpenEventEditor(original.StartLocal.Date,master,true);
+ }
  void AddEditAction(Window owner,CalendarEvent ev){
   var caption=(Grid)((DockPanel)((Border)owner.Tag).Child).Children[0];caption.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});foreach(UIElement child in caption.Children)if(Grid.GetColumn(child)>0)Grid.SetColumn(child,Grid.GetColumn(child)+1);
   var edit=Icon("\uE70F","编辑日程",()=>OpenEditEvent(ev));edit.Name="EditEvent";var calendar=cache.Calendars.FirstOrDefault(c=>c.Id==ev.CalendarId);edit.IsEnabled=!demo&&google!=null&&google.CanWrite&&calendar!=null&&calendar.Writable;if(!edit.IsEnabled)edit.ToolTip="需要日程读写授权与日历编辑权限";Grid.SetColumn(edit,1);caption.Children.Add(edit);

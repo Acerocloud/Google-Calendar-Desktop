@@ -45,6 +45,15 @@ public static partial class SelfTests {
   var ev=EditableFixture();var cal=new CalendarInfo{Id=ev.CalendarId,Name="工作",AccessRole="owner"};
   var draft=new EventDraft{Title="新日程",Location=ev.Location,Description=ev.Description,Start=ev.StartLocal.AddSeconds(-ev.StartLocal.Second),End=ev.EndLocal.AddSeconds(-ev.EndLocal.Second)};
   using(var handler=new RecoveryHandler(ev))using(var google=new GoogleService(store,handler)){
+   handler.Data["id"]=ev.RecurringId;
+   ((Dictionary<string,object>)handler.Data["start"])["timeZone"]="Asia/Shanghai";
+   ((Dictionary<string,object>)handler.Data["end"])["timeZone"]="Asia/Shanghai";
+   var master=google.ReadSeriesAsync(cal,ev,CancellationToken.None).GetAwaiter().GetResult();
+   var seriesDraft=new EventDraft{Title="整个系列的新标题",Location=master.Location,Description="系列备注",Start=draft.Start.AddHours(1),End=draft.End.AddHours(1)};
+   google.EditEventAsync(cal,master,seriesDraft,true,CancellationToken.None).GetAwaiter().GetResult();
+   Check(handler.LastPath.EndsWith("/"+ev.RecurringId)&&handler.Writes==1&&handler.LastPatch.ContainsKey("summary")&&handler.LastPatch.ContainsKey("description")&&!handler.LastPatch.ContainsKey("recurrence")&&Store.Text(Store.Map(handler.LastPatch,"start"),"timeZone")=="Asia/Shanghai","编辑整个系列只更新主日程，保留重复规则与时区");
+  }
+  using(var handler=new RecoveryHandler(ev))using(var google=new GoogleService(store,handler)){
    handler.Data["description"]="远程备注";var result=google.EditEventAsync(cal,ev,draft,true,CancellationToken.None).GetAwaiter().GetResult();Check(result.Title=="新日程"&&result.Description=="远程备注"&&handler.Writes==2&&handler.Reads==1&&!handler.ConditionalRead,"日程自动读取未经缓存的最新版本，仅合并本次字段改动");
   }
   using(var handler=new RecoveryHandler(ev))using(var google=new GoogleService(store,handler)){
@@ -56,10 +65,12 @@ public static partial class SelfTests {
  }
 }
 class RecoveryHandler:HttpMessageHandler {
+ public string LastPath;
  public Dictionary<string,object> Data;public Dictionary<string,object> LastPatch;public int Reads,Writes;public bool AlwaysConflict,ConditionalRead;
  public RecoveryHandler(){Data=new Dictionary<string,object>{{"id","item"},{"etag","\"v2\""},{"title","原任务"},{"notes","原备注"},{"status","needsAction"}};}
  public RecoveryHandler(CalendarEvent ev){Data=new Dictionary<string,object>{{"id",ev.Id},{"etag","\"v2\""},{"summary",ev.Title},{"location",ev.Location},{"description",ev.Description},{"start",new Dictionary<string,object>{{"dateTime",ev.Start}}},{"end",new Dictionary<string,object>{{"dateTime",ev.End}}}};}
  protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct){
+  LastPath=request.RequestUri.AbsolutePath;
   if(request.Method==HttpMethod.Get){Reads++;ConditionalRead=request.Headers.Contains("If-None-Match");return Reply(HttpStatusCode.OK,Data);}
   Writes++;if(!request.Headers.Contains("If-Match"))throw new Exception("Mutation must remain conditional");string etag=request.Headers.GetValues("If-Match").Single();
   if(AlwaysConflict||etag!=Store.Text(Data,"etag"))return Reply(HttpStatusCode.PreconditionFailed,new Dictionary<string,object>());

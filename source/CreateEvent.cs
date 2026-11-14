@@ -9,9 +9,12 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace DeskCalendar {
-public class EventDraft {
+public partial class EventDraft {
  public string Id=Guid.NewGuid().ToString("N"),Title,Location,Description;
  public DateTime Start,End; public bool AllDay,AllowPoint; public int Reminder=-1;
+ public DateTime? RepeatThrough;
+ public int RepeatInterval=1;
+ public RepeatUnit RepeatEvery=RepeatUnit.Week;
  public Dictionary<string,object> Payload(){
   if(string.IsNullOrWhiteSpace(Title))throw new Exception("请填写日程标题。");
   if(AllDay?End.Date<Start.Date:AllowPoint?End<Start:End<=Start)throw new Exception("结束时间须晚于开始时间。");
@@ -23,7 +26,9 @@ public class EventDraft {
   else{start["dateTime"]=new DateTimeOffset(DateTime.SpecifyKind(Start,DateTimeKind.Local)).ToString("o");end["dateTime"]=new DateTimeOffset(DateTime.SpecifyKind(End,DateTimeKind.Local)).ToString("o");}
   var reminders=new Dictionary<string,object>{{"useDefault",Reminder==-1}};
   if(Reminder!=-1)reminders["overrides"]=Reminder==-2?new object[0]:new object[]{new Dictionary<string,object>{{"method","popup"},{"minutes",Reminder}}};
-  return new Dictionary<string,object>{{"id",Id},{"summary",Title.Trim()},{"location",Location??""},{"description",Description??""},{"start",start},{"end",end},{"reminders",reminders}};
+  var payload=new Dictionary<string,object>{{"id",Id},{"summary",Title.Trim()},{"location",Location??""},{"description",Description??""},{"start",start},{"end",end},{"reminders",reminders}};
+  if(RepeatThrough.HasValue)AddRepeatRule(payload,start,end);
+  return payload;
  }
 }
 public partial class GoogleService {
